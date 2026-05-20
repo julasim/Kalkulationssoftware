@@ -4,15 +4,18 @@ import bcrypt from 'bcrypt'
 const prisma = new PrismaClient()
 
 async function main() {
-  const email = process.env.SEED_ADMIN_EMAIL ?? 'julius@sima.or.at'
-  const password = process.env.SEED_ADMIN_PASSWORD ?? 'changeme123'
-  const name = process.env.SEED_ADMIN_NAME ?? 'Julius Sima'
+  // || statt ??: ein leerer String aus der .env (SEED_ADMIN_PASSWORD=) soll auf
+  // den Default zurückfallen, nicht als leeres Passwort durchgereicht werden.
+  const email = process.env.SEED_ADMIN_EMAIL || 'julius@sima.or.at'
+  const password = process.env.SEED_ADMIN_PASSWORD || 'changeme123'
+  const name = process.env.SEED_ADMIN_NAME || 'Julius Sima'
 
   const passwordHash = await bcrypt.hash(password, 12)
 
+  // Bei erneutem Seed Passwort/Name/Rolle zurücksetzen (idempotenter Admin-Bootstrap).
   await prisma.user.upsert({
     where: { email },
-    update: {},
+    update: { name, passwordHash, role: 'admin' },
     create: { email, name, passwordHash, role: 'admin' },
   })
 

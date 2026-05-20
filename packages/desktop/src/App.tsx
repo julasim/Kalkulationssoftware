@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/Layout'
+import Login from './pages/Login'
 import ProjekteListe from './pages/ProjekteListe'
 import ProjektDetail from './pages/ProjektDetail'
 import LVEditor from './pages/LVEditor'
@@ -7,8 +8,25 @@ import Kalkulation from './pages/Kalkulation'
 import Katalog from './pages/Katalog'
 import Angebote from './pages/Angebote'
 import Einstellungen from './pages/Einstellungen'
+import { useAuth } from './lib/auth'
 
 export default function App() {
+  const { user, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center text-[13px] text-gray-400">Lädt …</div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <Routes>
+        <Route path="*" element={<Login />} />
+      </Routes>
+    )
+  }
+
   return (
     <Routes>
       <Route path="/" element={<Layout />}>
@@ -20,6 +38,7 @@ export default function App() {
         <Route path="katalog" element={<Katalog />} />
         <Route path="angebote" element={<Angebote />} />
         <Route path="einstellungen" element={<Einstellungen />} />
+        <Route path="*" element={<Navigate to="/projekte" replace />} />
       </Route>
     </Routes>
   )

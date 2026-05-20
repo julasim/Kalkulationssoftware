@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
+import { useAuth } from '../lib/auth'
 
 const navItems = [
   { to: '/projekte', label: 'Projekte', icon: '📁' },
@@ -7,7 +8,12 @@ const navItems = [
   { to: '/einstellungen', label: 'Einstellungen', icon: '⚙️' },
 ]
 
+function initials(name: string) {
+  return name.split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase()
+}
+
 export default function Layout() {
+  const { user, logout } = useAuth()
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Sidebar — immer hell */}
@@ -38,12 +44,19 @@ export default function Layout() {
 
         <div className="px-4 py-3 border-t border-gray-200 flex items-center gap-2">
           <div className="w-7 h-7 rounded-full bg-gray-900 flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0">
-            JS
+            {user ? initials(user.name) : '?'}
           </div>
-          <div>
-            <div className="text-[12px] font-medium text-gray-900">Julius Sima</div>
-            <div className="text-[10px] text-gray-400">Admin</div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[12px] font-medium text-gray-900 truncate">{user?.name}</div>
+            <div className="text-[10px] text-gray-400 capitalize">{user?.role}</div>
           </div>
+          <button
+            onClick={logout}
+            title="Abmelden"
+            className="text-[11px] text-gray-400 hover:text-gray-700 transition-colors duration-[180ms]"
+          >
+            Abmelden
+          </button>
         </div>
       </aside>
 

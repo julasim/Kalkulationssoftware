@@ -1,13 +1,26 @@
 const BASE_URL = import.meta.env.VITE_API_URL ?? '/api'
+const TOKEN_KEY = 'lv_token'
 
-let token: string | null = null
+let token: string | null = localStorage.getItem(TOKEN_KEY)
 
 export function setToken(t: string) {
   token = t
+  localStorage.setItem(TOKEN_KEY, t)
 }
 
 export function clearToken() {
   token = null
+  localStorage.removeItem(TOKEN_KEY)
+}
+
+export function getToken() {
+  return token
+}
+
+/** Wird bei 401 ausgelöst, damit die App ausloggen / zum Login leiten kann. */
+let onUnauthorized: (() => void) | null = null
+export function setUnauthorizedHandler(fn: () => void) {
+  onUnauthorized = fn
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -20,18 +33,26 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     },
   })
 
+  if (res.status === 401) {
+    clearToken()
+    onUnauthorized?.()
+    throw new Error('Nicht autorisiert')
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Unbekannter Fehler' }))
     throw new Error(err.error ?? `HTTP ${res.status}`)
   }
 
-  return res.json() as Promise<T>
+  // 204 / leere Antworten tolerieren
+  const text = await res.text()
+  return (text ? JSON.parse(text) : undefined) as T
 }
 
 export const api = {
   get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, body: unknown) =>
-    request<T>(path, { method: 'POST', body: JSON.stringify(body) }),
+  post: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) }),
   put: <T>(path: string, body: unknown) =>
     request<T>(path, { method: 'PUT', body: JSON.stringify(body) }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),

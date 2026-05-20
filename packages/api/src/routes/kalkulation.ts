@@ -6,6 +6,8 @@ const n = (v: unknown) => {
   return Number.isFinite(x) ? x : 0
 }
 
+const ARTEN = ['lohn', 'material', 'geraet', 'sonstiges', 'nu'] as const
+
 export default async function kalkulationRoutes(app: FastifyInstance) {
   app.addHook('onRequest', app.authenticate)
 
@@ -15,17 +17,14 @@ export default async function kalkulationRoutes(app: FastifyInstance) {
       where: { id },
       include: {
         kalkulation: {
-          include: {
-            lohnzeilen: { orderBy: { reihenfolge: 'asc' } },
-            materialzeilen: { orderBy: { reihenfolge: 'asc' } },
-            geraetezeilen: { orderBy: { reihenfolge: 'asc' } },
-            nuZeilen: { orderBy: { reihenfolge: 'asc' } },
-            sonstigeZeilen: { orderBy: { reihenfolge: 'asc' } },
-          },
+          include: { zeilen: { orderBy: { reihenfolge: 'asc' } } },
         },
       },
     })
     if (!position) return reply.code(404).send({ error: 'Position nicht gefunden', code: 'NOT_FOUND' })
+
+    // Standard-Zuschlagsschema zur Vorbelegung neuer Kalkulationen.
+    const standardSchema = await app.prisma.zuschlagsschema.findFirst({ where: { istStandard: true } })
 
     return {
       position: {
@@ -36,156 +35,90 @@ export default async function kalkulationRoutes(app: FastifyInstance) {
         menge: position.menge,
       },
       kalkulation: position.kalkulation, // null, falls noch nicht angelegt
+      standardSchema,
     }
   })
 
-  app.put('/positionen/:id/kalkulation', {
-    schema: {
-      body: {
-        type: 'object',
-        properties: {
-          agkProzent: { type: 'number' },
-          guProzent: { type: 'number' },
-          gewinnProzent: { type: 'number' },
-          lohnzeilen: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                bezeichnung: { type: 'string' },
-                aufwandswert: { type: 'number' },
-                stundensatz: { type: 'number' },
-              },
-            },
-          },
-          materialzeilen: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                bezeichnung: { type: 'string' },
-                menge: { type: 'number' },
-                einheit: { type: 'string' },
-                preis: { type: 'number' },
-                aufschlag: { type: 'number' },
-              },
-            },
-          },
-          geraetezeilen: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                bezeichnung: { type: 'string' },
-                menge: { type: 'number' },
-                einheit: { type: 'string' },
-                preis: { type: 'number' },
-              },
-            },
-          },
-          nuZeilen: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                bezeichnung: { type: 'string' },
-                betrag: { type: 'number' },
-              },
-            },
-          },
-          sonstigeZeilen: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                bezeichnung: { type: 'string' },
-                betrag: { type: 'number' },
+  app.put(
+    '/positionen/:id/kalkulation',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          properties: {
+            agkProzent: { type: 'number' },
+            guProzent: { type: 'number' },
+            gewinnProzent: { type: 'number' },
+            zeilen: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  art: { type: 'string', enum: ARTEN },
+                  betriebsmittelId: { type: ['string', 'null'] },
+                  bezeichnung: { type: 'string' },
+                  einheit: { type: 'string' },
+                  menge: { type: 'number' },
+                  einzelpreis: { type: 'number' },
+                  aufschlag: { type: 'number' },
+                },
               },
             },
           },
         },
       },
     },
-  }, async (request, reply) => {
-    const { id } = request.params as { id: string }
-    const body = request.body as any
+    async (request, reply) => {
+      const { id } = request.params as { id: string }
+      const body = request.body as any
 
-    const position = await app.prisma.position.findUnique({ where: { id } })
-    if (!position) return reply.code(404).send({ error: 'Position nicht gefunden', code: 'NOT_FOUND' })
+      const position = await app.prisma.position.findUnique({ where: { id } })
+      if (!position) return reply.code(404).send({ error: 'Position nicht gefunden', code: 'NOT_FOUND' })
 
-    const agkProzent = n(body.agkProzent ?? 5)
-    const guProzent = n(body.guProzent ?? 3)
-    const gewinnProzent = n(body.gewinnProzent ?? 3)
+      const agkProzent = n(body.agkProzent ?? 5)
+      const guProzent = n(body.guProzent ?? 3)
+      const gewinnProzent = n(body.gewinnProzent ?? 3)
 
-    const lohnzeilen = (body.lohnzeilen ?? []).map((z: any, i: number) => ({
-      bezeichnung: String(z.bezeichnung ?? ''),
-      aufwandswert: n(z.aufwandswert),
-      stundensatz: n(z.stundensatz),
-      reihenfolge: i,
-    }))
-    const materialzeilen = (body.materialzeilen ?? []).map((z: any, i: number) => ({
-      bezeichnung: String(z.bezeichnung ?? ''),
-      menge: n(z.menge),
-      einheit: String(z.einheit ?? ''),
-      preis: n(z.preis),
-      aufschlag: n(z.aufschlag),
-      reihenfolge: i,
-    }))
-    const geraetezeilen = (body.geraetezeilen ?? []).map((z: any, i: number) => ({
-      bezeichnung: String(z.bezeichnung ?? ''),
-      menge: n(z.menge),
-      einheit: String(z.einheit ?? ''),
-      preis: n(z.preis),
-      reihenfolge: i,
-    }))
-    const nuZeilen = (body.nuZeilen ?? []).map((z: any, i: number) => ({
-      bezeichnung: String(z.bezeichnung ?? ''),
-      betrag: n(z.betrag),
-      reihenfolge: i,
-    }))
-    const sonstigeZeilen = (body.sonstigeZeilen ?? []).map((z: any, i: number) => ({
-      bezeichnung: String(z.bezeichnung ?? ''),
-      betrag: n(z.betrag),
-      reihenfolge: i,
-    }))
+      const zeilen = (body.zeilen ?? []).map((z: any, i: number) => ({
+        art: z.art,
+        betriebsmittelId: z.betriebsmittelId || null,
+        bezeichnung: String(z.bezeichnung ?? ''),
+        einheit: String(z.einheit ?? ''),
+        menge: n(z.menge),
+        einzelpreis: n(z.einzelpreis),
+        aufschlag: n(z.aufschlag),
+        reihenfolge: i,
+      }))
 
-    const ergebnis = berechneKalkulation({
-      menge: n(position.menge),
-      agkProzent, guProzent, gewinnProzent,
-      lohnzeilen, materialzeilen, geraetezeilen, nuZeilen, sonstigeZeilen,
-    })
-
-    // Kalkulation + Zeilen atomar ersetzen.
-    await app.prisma.$transaction(async (tx) => {
-      const kalk = await tx.kalkulation.upsert({
-        where: { positionId: id },
-        create: {
-          positionId: id, agkProzent, guProzent, gewinnProzent,
-          einheitspreis: ergebnis.einheitspreis, gesamtpreis: ergebnis.gesamtpreis,
-        },
-        update: {
-          agkProzent, guProzent, gewinnProzent,
-          einheitspreis: ergebnis.einheitspreis, gesamtpreis: ergebnis.gesamtpreis,
-        },
+      const ergebnis = berechneKalkulation({
+        menge: n(position.menge),
+        agkProzent,
+        guProzent,
+        gewinnProzent,
+        zeilen: zeilen.map((z: any) => ({ menge: z.menge, einzelpreis: z.einzelpreis, aufschlag: z.aufschlag })),
       })
 
-      await Promise.all([
-        tx.kalkulationLohn.deleteMany({ where: { kalkulationId: kalk.id } }),
-        tx.kalkulationMaterial.deleteMany({ where: { kalkulationId: kalk.id } }),
-        tx.kalkulationGeraet.deleteMany({ where: { kalkulationId: kalk.id } }),
-        tx.kalkulationNU.deleteMany({ where: { kalkulationId: kalk.id } }),
-        tx.kalkulationSonstige.deleteMany({ where: { kalkulationId: kalk.id } }),
-      ])
+      await app.prisma.$transaction(async (tx) => {
+        const kalk = await tx.kalkulation.upsert({
+          where: { positionId: id },
+          create: {
+            positionId: id, agkProzent, guProzent, gewinnProzent,
+            einheitspreis: ergebnis.einheitspreis, gesamtpreis: ergebnis.gesamtpreis,
+          },
+          update: {
+            agkProzent, guProzent, gewinnProzent,
+            einheitspreis: ergebnis.einheitspreis, gesamtpreis: ergebnis.gesamtpreis,
+          },
+        })
+        await tx.kalkulationszeile.deleteMany({ where: { kalkulationId: kalk.id } })
+        if (zeilen.length) {
+          await tx.kalkulationszeile.createMany({
+            data: zeilen.map((z: any) => ({ ...z, kalkulationId: kalk.id })),
+          })
+        }
+      })
 
-      await Promise.all([
-        lohnzeilen.length && tx.kalkulationLohn.createMany({ data: lohnzeilen.map((z: any) => ({ ...z, kalkulationId: kalk.id })) }),
-        materialzeilen.length && tx.kalkulationMaterial.createMany({ data: materialzeilen.map((z: any) => ({ ...z, kalkulationId: kalk.id })) }),
-        geraetezeilen.length && tx.kalkulationGeraet.createMany({ data: geraetezeilen.map((z: any) => ({ ...z, kalkulationId: kalk.id })) }),
-        nuZeilen.length && tx.kalkulationNU.createMany({ data: nuZeilen.map((z: any) => ({ ...z, kalkulationId: kalk.id })) }),
-        sonstigeZeilen.length && tx.kalkulationSonstige.createMany({ data: sonstigeZeilen.map((z: any) => ({ ...z, kalkulationId: kalk.id })) }),
-      ].filter(Boolean) as Promise<unknown>[])
-    })
-
-    return { ergebnis }
-  })
+      return { ergebnis }
+    },
+  )
 }

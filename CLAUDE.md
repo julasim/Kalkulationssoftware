@@ -40,15 +40,19 @@ Statt der ursprünglich geplanten Tauri-Desktop-App ist dies eine **Web-App** (k
 
 **Durchstich M0–M4** (live auf VPS unter `https://kalkulation.sima.business`): Login → Projekt → LV → Position aus ÖNORM-Katalog → Kalkulation → Summen.
 
-**Phase 1 — Leistungsbücher (fertig):** mehrere ÖNORM-`.onlb` über die Web-UI hochladen/verwalten (Bereich „Leistungsbücher" 📚), Hintergrund-Import mit Fortschritt, Katalog-Suche/Picker filtern nach Buch.
+**Phase 1 — Leistungsbücher (fertig):** mehrere ÖNORM-`.onlb` über die Web-UI hochladen/verwalten („Leistungsbücher" 📚), Hintergrund-Import mit Fortschritt, Katalog-Filter nach Buch.
 
-- **API** (`packages/api/src`): modular — `app.ts` (Instanz + `@fastify/multipart` + Job-Recovery), `plugins/` (prisma, auth mit `authenticate` **und** `requireAdmin`), `routes/` (health, auth, katalog, leistungsbuecher, projekte, lvs, kalkulation) unter `/api`, `services/` (`kalkulation.ts` Engine, `onlb-parser.ts` Parser, `leistungsbuch-import.ts` + `import-runner.ts` Import-Job). Auth = bcrypt + JWT.
-- **Prisma**: Migrationen `0_init` + `20260520120000_leistungsbuecher` (mit Backfill). Entitäten: User, Projekt, LV, LVTitel, Position, Kalkulation (+5 Zeilentypen), KatalogPosition, **Leistungsbuch**, **ImportJob**, Angebot. Seed-Admin in `prisma/seed.ts`.
-- **Katalog-Import**: `services/onlb-parser.ts` (`parse()`, A2063:2021, exportiert) wird von CLI (`prisma/import-onlb.ts`, `--dry`) **und** Web-Upload genutzt. LB-HB-023 ≈ 19.700 Positionen.
-- **Web** (`packages/desktop/src`): Auth-Context (`lib/auth`), Seiten ProjekteListe/ProjektDetail/LVEditor/Kalkulation/Katalog/**Leistungsbuecher**, `KatalogPicker`-Modal (mit Buch-Filter), `lib/api` (Token in localStorage, `upload()` für FormData).
-- **MCP** (`packages/mcp/src/index.ts`): read-Tools + `create_angebot`, direkter PrismaClient.
+**Phase 2a — Betriebsmittel-Stammdaten (fertig):** zentrale, wiederverwendbare Betriebsmittel (Löhne/Material/Geräte/Sonstiges/NU) + Zuschlagsschemata, verwaltet unter „Stammdaten" 🗂️ (Admin-Writes).
 
-**Noch offen:** siehe Roadmap.
+**Phase 2b — strukturierte EP-Aufgliederung (fertig):** Kalkulation läuft über eine vereinheitlichte `Kalkulationszeile` (Kosten = `menge × einzelpreis × (1+aufschlag/100)`), die optional ein Betriebsmittel referenziert (Snapshot beim Übernehmen). UI: Lohn+Sonstiges Standard, Material/Geräte/NU auf Klick; „Zuschlagsschema anwenden". Die alten 5 `Kalkulation*`-Zeilentabellen sind abgelöst.
+
+- **API** (`packages/api/src`): `app.ts` (Instanz + `@fastify/multipart` + Job-Recovery), `plugins/` (prisma, auth mit `authenticate` **und** `requireAdmin`), `routes/` (health, auth, katalog, leistungsbuecher, **betriebsmittel**, projekte, lvs, kalkulation) unter `/api`, `services/` (`kalkulation.ts` Engine [zeilen-basiert], `onlb-parser.ts`, `leistungsbuch-import.ts` + `import-runner.ts`).
+- **Prisma**: Migrationen `0_init` · `20260520120000_leistungsbuecher` (Backfill) · `20260520130000_betriebsmittel` · `20260520140000_kalkulationszeile` (Reset). Entitäten: User, Projekt, LV, LVTitel, Position, Kalkulation, **Kalkulationszeile**, KatalogPosition, Leistungsbuch, ImportJob, **Betriebsmittel**, **Zuschlagsschema**, Angebot. Seed: Admin + Standard-Zuschlagsschema.
+- **Katalog-Import**: `services/onlb-parser.ts` (`parse()`, A2063:2021) für CLI (`db:import-onlb --dry`) **und** Web-Upload. LB-HB-023 ≈ 19.700 Positionen.
+- **Web** (`packages/desktop/src`): Auth-Context, Seiten Projekte/LVEditor/**Kalkulation** (EP-Aufgliederung)/Katalog/**Leistungsbuecher**/**Stammdaten**, Modals `KatalogPicker` + `BetriebsmittelPicker`, `lib/api` (`upload()`/`patch()`).
+- **MCP** (`packages/mcp/src/index.ts`): read-Tools + `create_angebot` (`get_kalkulation` liefert `zeilen[]`).
+
+**Noch offen:** siehe Roadmap (LV-Struktur/Position-Editing → `.onlv` → PDF-Ausgabe → NU-Vergabe).
 
 ## Roadmap & Vision
 
@@ -58,9 +62,9 @@ Ziel: fokussiertes **ÖNORM-AVA-Tool** (Ausschreibung/Kalkulation) in Anlehnung 
 - ÖNORM-Standardpositionen bleiben **read-only**; Anpassen später via „Kopieren & anpassen" in einen eigenen Stammkatalog (`Leistungsbuch.typ = eigen`).
 
 Phasen:
-1. ✅ **Leistungsbücher** — Web-Upload & Verwaltung (fertig).
-2. **Stammdaten/Betriebsmittel + tiefere Kalkulation** — nächster Fokus; eigener Detail-Planungslauf vor Umsetzung (Datenmodell-Entwurf + Migration weg von den `Kalkulation*`-Tabellen).
-3. **LV-Struktur & Position-Editing** — mehrstufige Titel (T1/T2/P), OZ-Automatik, Positions-Kennzeichen (Entfällt/Fixpreis/NU/intern), Langtext-/Lücken-Editor, Mengenberechnung, Drag&Drop.
+1. ✅ **Leistungsbücher** — Web-Upload & Verwaltung.
+2. ✅ **Stammdaten/Betriebsmittel + tiefere Kalkulation** — 2a Stammdaten (Betriebsmittel/Zuschlagsschema) + 2b vereinheitlichte `Kalkulationszeile` mit Betriebsmittel-Bezug (Snapshot). *Hinweis: Lohn vorerst als einfache Stundensätze (kein Mittellohn); keine freie Formel-Engine — beides bei Bedarf später.*
+3. **LV-Struktur & Position-Editing** (nächster Fokus) — mehrstufige Titel (T1/T2/P), OZ-Automatik, Positions-Kennzeichen (Entfällt/Fixpreis/NU/intern), Langtext-/Lücken-Editor, Mengenberechnung, Drag&Drop.
 4. **`.onlv` Im-/Export** (A2063) — braucht mehrstufige LV-Struktur/OZ.
 5. **PDF-/Angebots-Ausgabe** — Deckblatt, Positionsliste, Layout, Berichte.
 6. **NU-Vergabe & Auswertungen**; später Abrechnung/Nachträge/Bautagebuch.
@@ -76,6 +80,7 @@ Phasen:
 - **Admin-Routen**: Upload/PATCH/DELETE der Leistungsbücher nutzen `app.requireAdmin` (403 wenn `role≠admin`); das Frontend blendet diese Aktionen für Nicht-Admins aus.
 - **Migration mit Backfill**: `20260520120000_leistungsbuecher` ist handgeschrieben (Backfill bestehender KatalogPositionen → Leistungsbuch über `kennung`+`versionsnummer`, dann NOT NULL/Unique/FK). `prisma migrate dev` erzeugt Datentransfers NICHT automatisch — handschriftlich schreiben und nur den DDL-Teil gegen `prisma migrate diff` gegenprüfen (kein lokales Postgres).
 - **Seed-Passwort**: `prisma/seed.ts` nutzt `process.env.X || 'default'` (nicht `??`), damit ein leerer `.env`-String auf den Default fällt; `db:seed` setzt das Admin-Passwort beim erneuten Lauf zurück.
+- **Kalkulationszeile / Betriebsmittel-Snapshot**: Eine Zeile (`art` lohn|material|geraet|sonstiges|nu) kann ein `Betriebsmittel` referenzieren, kopiert dessen Werte aber als **Snapshot** (Preis/Einheit). Spätere Stammdaten-Preisänderung wirkt NICHT rückwirkend (`betriebsmittelId` FK `SET NULL` bei Löschen). Kosten generisch = `menge × einzelpreis × (1+aufschlag/100)`; NU/Sonstiges: `menge=1`, `einzelpreis=Betrag`. Stammdaten-Schreibrechte = `requireAdmin`.
 
 ## Projektübersicht
 
@@ -155,7 +160,10 @@ lv-manager/
 - **LV (Leistungsverzeichnis)** — versioniert (v1, v2, …), gehört zu einem Projekt
 - **LVTitel** — hierarchische Gliederung im LV (Titel > Untertitel)
 - **Position** — einzelne Leistungsposition, gehört zu einem Titel
-- **Kalkulation** — Aufschlüsselung pro Position (Lohn, Material, Geräte, NU, Zuschläge) — *wird in Phase 2 durch das Betriebsmittel-Modell abgelöst*
+- **Kalkulation** — pro Position (1:1); hält Zuschläge (agk/gu/gewinn) + berechneten `einheitspreis`/`gesamtpreis`
+- **Kalkulationszeile** — vereinheitlichte Zeile (`art` lohn|material|geraet|sonstiges|nu); Kosten `menge × einzelpreis × (1+aufschlag/100)`; optional `betriebsmittelId` (Snapshot). Löst die alten 5 `Kalkulation*`-Tabellen ab.
+- **Betriebsmittel** — zentrales Stammdaten-Kostenmittel (`art`, `kostenProEinheit`, `einheit`, `aufschlag`, `aktiv`)
+- **Zuschlagsschema** — zentrale Zuschlagssätze (agk/gu/gewinn, `istStandard`)
 - **Leistungsbuch** — importiertes ÖNORM-Buch (LB-HB/LB-VI/LB-HT …) oder eigener Stamm; `typ` oenorm|eigen, `aktiv`, `versionsnummer`; gruppiert KatalogPositionen
 - **KatalogPosition** — Standardtext eines Leistungsbuchs (`@@unique([leistungsbuchId, posNummer])`)
 - **ImportJob** — Status/Fortschritt eines ONLB-Imports (pending/running/done/error)
@@ -164,31 +172,32 @@ lv-manager/
 ### Wichtige Beziehungen
 
 ```
-Projekt 1──n LV 1──n LVTitel 1──n Position 1──1 Kalkulation
+Projekt 1──n LV 1──n LVTitel 1──n Position 1──1 Kalkulation 1──n Kalkulationszeile
                                     └── KatalogPosition (optional, FK SET NULL)
-Leistungsbuch 1──n KatalogPosition (FK CASCADE)
-Leistungsbuch 1──n ImportJob
+Kalkulationszeile ──n──1 Betriebsmittel (optional, FK SET NULL, Snapshot)
+Leistungsbuch 1──n KatalogPosition (FK CASCADE) · 1──n ImportJob
 LV 1──n Angebot
 ```
 
 ---
 
-## Kalkulations-Engine
+## Kalkulations-Engine (`services/kalkulation.ts`, reine Funktion)
 
-Jede Position hat eine Kalkulation mit folgenden Ebenen:
+Jede Kalkulationszeile hat dieselbe Kostenformel:
 
 ```
-Einheitspreis (EP) =
-  Lohn        (Aufwandswert [h/Einheit] × Stundensatz [€/h])
-+ Material    (Summe Materialpositionen mit Aufschlag)
-+ Geräte      (Gerätepositionen)
-+ Nachuntern. (NU-Kosten pauschal oder aufgeschlüsselt)
-+ Sonstiges
+Zeilenkosten = menge × einzelpreis × (1 + aufschlag/100)
+  Lohn:        menge = Aufwandswert (h/Einh.), einzelpreis = Stundensatz (€/h)
+  Material:    menge, einzelpreis = Preis, aufschlag = %
+  Geräte:      menge, einzelpreis = Preis
+  NU/Sonstige: menge = 1, einzelpreis = Betrag
 
-Vor Zuschläge (VZ) = EP × Menge
-
-Gesamtpreis   = VZ × (1 + AGK%) × (1 + GU%) × (1 + Gewinn%)
+EP-Basis      = Σ Zeilenkosten
+Einheitspreis = EP-Basis × (1 + AGK%) × (1 + GU%) × (1 + Gewinn%)
+Gesamtpreis   = Einheitspreis × Menge   (Position.menge)
 ```
+
+Betriebsmittel aus den Stammdaten werden beim Übernehmen als Snapshot in die Zeile kopiert (Preisstabilität).
 
 ---
 
@@ -219,6 +228,9 @@ GET    /positionen/:id/kalkulation
 PUT    /positionen/:id/kalkulation
 
 GET    /katalog/search?q=...&leistungsbuchId=...   # nur aktive Bücher
+
+GET    /betriebsmittel?art=&aktiv=        # Stammdaten; Writes (POST/PATCH/DELETE) Admin
+GET    /zuschlagsschemata                 # POST/PATCH/DELETE Admin; genau ein istStandard
 
 GET    /leistungsbuecher
 POST   /leistungsbuecher/import       # multipart .onlb, Admin → 202 + jobId (Hintergrund-Import)

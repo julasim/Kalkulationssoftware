@@ -70,11 +70,7 @@ server.tool(
     const kal = await prisma.kalkulation.findUnique({
       where: { positionId },
       include: {
-        lohnzeilen: true,
-        materialzeilen: true,
-        geraetezeilen: true,
-        nuZeilen: true,
-        sonstigeZeilen: true,
+        zeilen: { orderBy: { reihenfolge: 'asc' } },
         position: true,
       },
     })

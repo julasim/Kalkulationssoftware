@@ -137,67 +137,34 @@ model Kalkulation {
   position      Position  @relation(fields: [positionId], references: [id], onDelete: Cascade)
   positionId    String    @unique
 
-  lohnzeilen    KalkulationLohn[]
-  materialzeilen KalkulationMaterial[]
-  geraetezeilen KalkulationGeraet[]
-  nuZeilen      KalkulationNU[]
-  sonstigeZeilen KalkulationSonstige[]
+  zeilen        Kalkulationszeile[]
 }
 
-model KalkulationLohn {
-  id            String      @id @default(cuid())
-  bezeichnung   String
-  aufwandswert  Decimal     @db.Decimal(8, 3)  // h/Einheit
-  stundensatz   Decimal     @db.Decimal(8, 2)  // €/h
-  reihenfolge   Int         @default(0)
+// Vereinheitlichte Kalkulationszeile (löst Lohn/Material/Geraet/NU/Sonstige ab).
+// Kosten = menge × einzelpreis × (1 + aufschlag/100).
+//   Lohn:        menge = Aufwandswert (h/Einh.), einzelpreis = Stundensatz (€/h)
+//   Material:    menge, einzelpreis = Preis, aufschlag = %
+//   Geräte:      menge, einzelpreis = Preis
+//   NU/Sonstige: menge = 1, einzelpreis = Betrag
+model Kalkulationszeile {
+  id               String            @id @default(cuid())
+  art              BetriebsmittelArt
+  bezeichnung      String
+  einheit          String            @default("")
+  menge            Decimal           @default(1) @db.Decimal(12, 3)
+  einzelpreis      Decimal           @default(0) @db.Decimal(12, 4)
+  aufschlag        Decimal           @default(0) @db.Decimal(5, 2)
+  reihenfolge      Int               @default(0)
 
-  kalkulation   Kalkulation @relation(fields: [kalkulationId], references: [id], onDelete: Cascade)
-  kalkulationId String
-}
+  // Optionaler Bezug auf ein Stammdaten-Betriebsmittel (Werte als Snapshot in der Zeile).
+  betriebsmittel   Betriebsmittel?   @relation(fields: [betriebsmittelId], references: [id], onDelete: SetNull)
+  betriebsmittelId String?
 
-model KalkulationMaterial {
-  id            String      @id @default(cuid())
-  bezeichnung   String
-  menge         Decimal     @db.Decimal(10, 3)
-  einheit       String
-  preis         Decimal     @db.Decimal(10, 4)  // €/Einheit
-  aufschlag     Decimal     @default(0) @db.Decimal(5, 2)  // %
-  reihenfolge   Int         @default(0)
+  kalkulation      Kalkulation       @relation(fields: [kalkulationId], references: [id], onDelete: Cascade)
+  kalkulationId    String
 
-  kalkulation   Kalkulation @relation(fields: [kalkulationId], references: [id], onDelete: Cascade)
-  kalkulationId String
-}
-
-model KalkulationGeraet {
-  id            String      @id @default(cuid())
-  bezeichnung   String
-  menge         Decimal     @db.Decimal(10, 3)
-  einheit       String
-  preis         Decimal     @db.Decimal(10, 4)
-  reihenfolge   Int         @default(0)
-
-  kalkulation   Kalkulation @relation(fields: [kalkulationId], references: [id], onDelete: Cascade)
-  kalkulationId String
-}
-
-model KalkulationNU {
-  id            String      @id @default(cuid())
-  bezeichnung   String
-  betrag        Decimal     @db.Decimal(12, 2)  // €/Einheit
-  reihenfolge   Int         @default(0)
-
-  kalkulation   Kalkulation @relation(fields: [kalkulationId], references: [id], onDelete: Cascade)
-  kalkulationId String
-}
-
-model KalkulationSonstige {
-  id            String      @id @default(cuid())
-  bezeichnung   String
-  betrag        Decimal     @db.Decimal(12, 2)
-  reihenfolge   Int         @default(0)
-
-  kalkulation   Kalkulation @relation(fields: [kalkulationId], references: [id], onDelete: Cascade)
-  kalkulationId String
+  @@index([kalkulationId])
+  @@index([betriebsmittelId])
 }
 
 // ─── Katalog / Leistungsbücher ──────────────────────────────────────────────
@@ -297,6 +264,8 @@ model Betriebsmittel {
   aktiv            Boolean           @default(true)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
+
+  kalkulationszeilen Kalkulationszeile[]
 
   @@index([art])
 }

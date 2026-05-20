@@ -103,3 +103,31 @@ export interface Zuschlagsschema {
   gewinnProzent: Dezimal
   istStandard: boolean
 }
+
+// ─── Kalkulation (EP-Aufgliederung) ──────────────────────────────────────────
+export interface Kalkulationszeile {
+  id: string
+  art: BetriebsmittelArt
+  betriebsmittelId: string | null
+  bezeichnung: string
+  einheit: string
+  menge: Dezimal
+  einzelpreis: Dezimal
+  aufschlag: Dezimal
+  reihenfolge: number
+}
+
+export interface KalkulationGet {
+  position: { id: string; nummer: string; kurztext: string; einheit: string; menge: Dezimal }
+  kalkulation:
+    | {
+        agkProzent: Dezimal
+        guProzent: Dezimal
+        gewinnProzent: Dezimal
+        einheitspreis: Dezimal | null
+        gesamtpreis: Dezimal | null
+        zeilen: Kalkulationszeile[]
+      }
+    | null
+  standardSchema: Zuschlagsschema | null
+}

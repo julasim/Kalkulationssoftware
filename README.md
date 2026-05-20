@@ -20,12 +20,23 @@ docker compose up -d --build  # baut App-Image, startet Postgres + App
 ```
 
 Beim Start wendet der App-Container die DB-Migrationen automatisch an (`prisma migrate deploy`).
-Danach den Erst-Admin anlegen und den ÖNORM-Katalog importieren:
+Danach den Erst-Admin anlegen:
 
 ```bash
 docker compose exec app pnpm db:seed                 # Admin-User (siehe SEED_ADMIN_* in .env)
-docker compose exec app pnpm --filter api db:import-onlb /pfad/zur/LB-HB-023-2021.onlb
 ```
+
+Für den ÖNORM-Katalog-Import die `.onlb`-Datei zuerst in den Container kopieren — sie ist
+**nicht** im Image enthalten (per `.dockerignore` ausgeschlossen), der Host-Pfad existiert im
+Container also nicht:
+
+```bash
+docker compose cp ./LB-HB-023-2021.onlb app:/tmp/katalog.onlb   # Datei in den Container kopieren
+docker compose exec app pnpm --filter api db:import-onlb /tmp/katalog.onlb
+```
+
+Alternativ die Datei (oder ihr Verzeichnis) als Volume in den `app`-Service mounten und den
+containerinternen Pfad direkt verwenden.
 
 Die App ist anschließend unter `http://<server>:${APP_PORT}` (Default 3000) erreichbar.
 Für HTTPS einen Reverse-Proxy (nginx/Caddy/Traefik) davorschalten, der auf den App-Port verweist.

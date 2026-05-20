@@ -173,6 +173,10 @@ function PositionRow({
 }) {
   const [menge, setMengeLocal] = useState(String(toNum(pos.menge)))
 
+  useEffect(() => {
+    setMengeLocal(String(toNum(pos.menge)))
+  }, [pos.menge])
+
   function commit() {
     const n = Number(menge.replace(',', '.'))
     if (!Number.isNaN(n) && n !== toNum(pos.menge)) onSetMenge(pos.id, n)

@@ -150,6 +150,22 @@ export default async function lvRoutes(app: FastifyInstance) {
           ...(body.typ !== undefined ? { typ: body.typ as any } : {}),
         },
       })
+
+      // Bei Mengenänderung den gespeicherten Gesamtpreis nachziehen, sofern ein EP existiert.
+      if (body.menge !== undefined) {
+        const kalkulation = await app.prisma.kalkulation.findUnique({
+          where: { positionId: id },
+          select: { einheitspreis: true },
+        })
+        if (kalkulation?.einheitspreis != null) {
+          const gesamtpreis = Math.round(Number(kalkulation.einheitspreis) * body.menge * 100) / 100
+          await app.prisma.kalkulation.update({
+            where: { positionId: id },
+            data: { gesamtpreis },
+          })
+        }
+      }
+
       return position
     } catch {
       return reply.code(404).send({ error: 'Position nicht gefunden', code: 'NOT_FOUND' })

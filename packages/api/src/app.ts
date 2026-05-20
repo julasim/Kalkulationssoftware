@@ -26,9 +26,10 @@ export async function buildApp() {
   const spaDir = fileURLToPath(new URL('../../desktop/dist', import.meta.url))
   if (existsSync(spaDir)) {
     await app.register(fastifyStatic, { root: spaDir })
-    // SPA-Fallback: alles, was nicht /api ist und nicht existiert -> index.html
+    // SPA-Fallback: nur GET/HEAD auf Nicht-/api-Routen liefern index.html.
     app.setNotFoundHandler((request, reply) => {
-      if (request.raw.url?.startsWith('/api')) {
+      const isGetLike = request.method === 'GET' || request.method === 'HEAD'
+      if (request.raw.url?.startsWith('/api') || !isGetLike) {
         return reply.code(404).send({ error: 'Nicht gefunden', code: 'NOT_FOUND' })
       }
       return reply.sendFile('index.html')

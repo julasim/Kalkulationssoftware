@@ -43,6 +43,10 @@ export default async function projekteRoutes(app: FastifyInstance) {
     const body = request.body as {
       name?: string; beschreibung?: string | null; ort?: string | null; status?: string
     }
+    const erlaubteStatus = ['offen', 'in_arbeit', 'abgeschlossen', 'archiviert']
+    if (body.status !== undefined && !erlaubteStatus.includes(body.status)) {
+      return reply.code(400).send({ error: 'Ungültiger Status', code: 'BAD_REQUEST' })
+    }
     try {
       const projekt = await app.prisma.projekt.update({
         where: { id },

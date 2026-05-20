@@ -32,6 +32,7 @@ export interface Position {
   einheit: string
   menge: Dezimal
   typ: 'normal' | 'alternativ' | 'eventualposition' | 'pauschale'
+  entfaellt: boolean
   reihenfolge: number
   katalogPosId: string | null
   kalkulation: { einheitspreis: Dezimal | null; gesamtpreis: Dezimal | null } | null
@@ -41,6 +42,7 @@ export interface LVTitel {
   id: string
   nummer: string
   bezeichnung: string
+  parentId: string | null
   reihenfolge: number
   positionen: Position[]
 }

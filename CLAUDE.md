@@ -46,6 +46,8 @@ Statt der ursprünglich geplanten Tauri-Desktop-App ist dies eine **Web-App** (k
 
 **Phase 2b — strukturierte EP-Aufgliederung (fertig):** Kalkulation läuft über eine vereinheitlichte `Kalkulationszeile` (Kosten = `menge × einzelpreis × (1+aufschlag/100)`), die optional ein Betriebsmittel referenziert (Snapshot beim Übernehmen). UI: Lohn+Sonstiges Standard, Material/Geräte/NU auf Klick; „Zuschlagsschema anwenden". Die alten 5 `Kalkulation*`-Zeilentabellen sind abgelöst.
 
+**Phase 3 — LV-Struktur & Position-Editing (fertig):** 2-Ebenen-Titel (Titel > Untertitel > Position) via `LVTitel.parentId`; OZ-Automatik (`POST /lvs/:id/ordnungszahlen` → `01 / 01.01 / 01.01.NN`); Positions-Kennzeichen `entfaellt` (aus Summen ausgenommen, in MCP+UI); Inline-Editing (Kurztext/Einheit/Menge/Typ/Langtext-Textfeld); Hoch/Runter-Sortierung + Verschieben zwischen Titeln (kein Drag&Drop). Titel-Löschen kaskadiert Untertitel im Route-Code.
+
 - **API** (`packages/api/src`): `app.ts` (Instanz + `@fastify/multipart` + Job-Recovery), `plugins/` (prisma, auth mit `authenticate` **und** `requireAdmin`), `routes/` (health, auth, katalog, leistungsbuecher, **betriebsmittel**, projekte, lvs, kalkulation) unter `/api`, `services/` (`kalkulation.ts` Engine [zeilen-basiert], `onlb-parser.ts`, `leistungsbuch-import.ts` + `import-runner.ts`).
 - **Prisma**: Migrationen `0_init` · `20260520120000_leistungsbuecher` (Backfill) · `20260520130000_betriebsmittel` · `20260520140000_kalkulationszeile` (Reset). Entitäten: User, Projekt, LV, LVTitel, Position, Kalkulation, **Kalkulationszeile**, KatalogPosition, Leistungsbuch, ImportJob, **Betriebsmittel**, **Zuschlagsschema**, Angebot. Seed: Admin + Standard-Zuschlagsschema.
 - **Katalog-Import**: `services/onlb-parser.ts` (`parse()`, A2063:2021) für CLI (`db:import-onlb --dry`) **und** Web-Upload. LB-HB-023 ≈ 19.700 Positionen.
@@ -64,8 +66,8 @@ Ziel: fokussiertes **ÖNORM-AVA-Tool** (Ausschreibung/Kalkulation) in Anlehnung 
 Phasen:
 1. ✅ **Leistungsbücher** — Web-Upload & Verwaltung.
 2. ✅ **Stammdaten/Betriebsmittel + tiefere Kalkulation** — 2a Stammdaten (Betriebsmittel/Zuschlagsschema) + 2b vereinheitlichte `Kalkulationszeile` mit Betriebsmittel-Bezug (Snapshot). *Hinweis: Lohn vorerst als einfache Stundensätze (kein Mittellohn); keine freie Formel-Engine — beides bei Bedarf später.*
-3. **LV-Struktur & Position-Editing** (nächster Fokus) — mehrstufige Titel (T1/T2/P), OZ-Automatik, Positions-Kennzeichen (Entfällt/Fixpreis/NU/intern), Langtext-/Lücken-Editor, Mengenberechnung, Drag&Drop.
-4. **`.onlv` Im-/Export** (A2063) — braucht mehrstufige LV-Struktur/OZ.
+3. ✅ **LV-Struktur & Position-Editing** — 2-Ebenen-Titel, OZ-Automatik, `entfaellt`-Kennzeichen, Inline-Editing, Hoch/Runter + Verschieben. *(Drag&Drop, Rich-Langtext/Lücken, Mengenberechnung, weitere Kennzeichen Fixpreis/intern bewusst später.)*
+4. **`.onlv` Im-/Export** (A2063, nächster Fokus) — Projekt-LVs mit Bauherren/anderer Software austauschen; LV-Struktur/OZ ist nun vorhanden.
 5. **PDF-/Angebots-Ausgabe** — Deckblatt, Positionsliste, Layout, Berichte.
 6. **NU-Vergabe & Auswertungen**; später Abrechnung/Nachträge/Bautagebuch.
 
@@ -215,13 +217,17 @@ DELETE /projekte/:id
 
 GET    /projekte/:id/lvs
 POST   /projekte/:id/lvs
-GET    /lvs/:id
+GET    /lvs/:id                       # LV-Baum (Titel/Untertitel via parentId + Positionen)
 PUT    /lvs/:id
-POST   /lvs/:id/version      # neue Version erstellen
+POST   /lvs/:id/titel                 # Titel/Untertitel (parentId) anlegen
+PATCH  /titel/:id                     # umbenennen/reihenfolge/parentId (max. 2 Ebenen)
+PATCH  /titel/:id/reihenfolge         # { richtung: hoch|runter }
+DELETE /titel/:id                     # inkl. Untertitel (Cascade im Code)
+POST   /lvs/:id/ordnungszahlen        # OZ neu vergeben (01 / 01.01 / 01.01.NN)
 
-GET    /lvs/:id/positionen
-POST   /lvs/:id/positionen
-PUT    /positionen/:id
+POST   /lvs/:id/positionen            # optional aus KatalogPosition
+PUT    /positionen/:id                # Felder + entfaellt + titelId (verschieben) + reihenfolge
+PATCH  /positionen/:id/reihenfolge    # { richtung: hoch|runter }
 DELETE /positionen/:id
 
 GET    /positionen/:id/kalkulation

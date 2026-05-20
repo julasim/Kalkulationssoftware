@@ -107,6 +107,7 @@ model Position {
   menge           Decimal       @db.Decimal(12, 3)
   einheit         String        // m², m³, lfm, Stk, psch, ...
   typ             PositionTyp   @default(normal)
+  entfaellt       Boolean       @default(false) // Kennzeichen: aus Summen ausgenommen
   reihenfolge     Int           @default(0)
 
   // Referenz auf Katalogposition (optional)

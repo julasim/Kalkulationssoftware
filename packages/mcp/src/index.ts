@@ -129,7 +129,8 @@ server.tool(
       projekt: lv.projekt.name,
       lv: `${lv.bezeichnung} v${lv.version}`,
       titel: lv.titel.map((t) => {
-        const titelSumme = t.positionen.reduce((sum, p) => {
+        const aktive = t.positionen.filter((p) => !p.entfaellt)
+        const titelSumme = aktive.reduce((sum, p) => {
           return sum + Number(p.kalkulation?.gesamtpreis ?? 0)
         }, 0)
         totalNetto += titelSumme

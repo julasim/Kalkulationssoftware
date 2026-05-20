@@ -8,38 +8,49 @@ Alle Befehle vom Repo-Root (pnpm Workspaces):
 
 ```bash
 pnpm install                  # einmalig, installiert alle Packages
-pnpm --filter api db:generate # Prisma Client generieren (NÖTIG vor erstem build/dev)
+pnpm db:generate              # Prisma Client generieren (NÖTIG vor erstem build/dev)
 
-pnpm dev:api                  # Fastify API (tsx watch, Port 3000)
+pnpm dev:api                  # Fastify API (tsx watch, Port 3000) — serviert auch /api
+pnpm dev:web                  # Vite Dev-Server (Port 5173, proxyt /api -> :3000)
 pnpm dev:mcp                  # MCP Server (stdio)
-pnpm dev:desktop              # Vite Dev-Server (Port 5173)
 
-pnpm build                    # baut api + desktop (tsc / vite)
-pnpm db:migrate               # prisma migrate dev (Schema-Änderungen)
+pnpm build                    # baut Web-SPA + API (vite / tsc)
+pnpm db:deploy                # prisma migrate deploy (Migrationen anwenden, Prod)
+pnpm db:migrate               # prisma migrate dev (neue Migration, Dev)
+pnpm db:seed                  # Admin-User anlegen
 pnpm db:studio                # Prisma Studio
-pnpm db:seed                  # prisma/seed.ts  (Datei existiert noch nicht)
+pnpm --filter api db:import-onlb <datei.onlb>   # ÖNORM-Katalog importieren
 ```
 
-Tauri-Shell (in `packages/desktop`): `pnpm tauri:dev` / `pnpm tauri:build` — **`src-tauri/` ist noch nicht initialisiert**, muss erst per `pnpm tauri init` angelegt werden.
+Deployment: `docker compose up -d --build` (Postgres + App-Container). Details in `README.md`.
 
-Es gibt **kein Test-Setup** (kein Vitest/Jest, keine Test-Skripte). Verifikation läuft über `tsc` (strict) und manuelles Ausführen.
+**Wichtig — lokaler Build:** `pnpm build` ruft intern `pnpm` auf; liegt pnpm nicht im PATH (z. B. nur via corepack aktiviert), die Pakete einzeln bauen: `corepack pnpm --filter desktop build` bzw. `--filter api build`. Im Docker-Build ist pnpm via `corepack enable` vorhanden.
 
-## Aktueller Implementierungsstand
+Es gibt **kein Test-Setup** (kein Vitest/Jest). Verifikation läuft über `tsc --noEmit` (strict) und den Production-Build.
 
-Die Architektur unten ist die **Ziel-Spezifikation**, nicht der Ist-Zustand. Tatsächlich vorhanden:
+## Architektur-Hinweis (Web statt Tauri)
 
-- **API** (`packages/api/src/index.ts`): nur ein einziges File. Auth + JWT + CORS sind registriert, aber alle Routen außer `/health` geben `501 NOT_IMPLEMENTED` zurück. Die in der Spec genannten `routes/`, `plugins/`, `services/`-Ordner existieren noch nicht — beim Implementieren neu anlegen.
-- **Prisma** (`packages/api/prisma/schema.prisma`): Schema ist vollständig modelliert (User, Projekt, LV, LVTitel, Position, Kalkulation + 5 Kalkulations-Zeilentypen, KatalogPosition, Angebot). Es gibt **noch keine Migrationen** — der erste `prisma migrate dev` legt sie an.
-- **MCP** (`packages/mcp/src/index.ts`): voll funktionsfähig, 7 read-Tools + `create_angebot`. Nutzt direkt PrismaClient (kein API-Umweg).
-- **Desktop** (`packages/desktop/src`): React-Router-Gerüst mit Seiten-Stubs (`pages/`), zentraler API-Client in `src/lib/api.ts` (modul-lokaler In-Memory-Token via `setToken`).
+Statt der ursprünglich geplanten Tauri-Desktop-App ist dies eine **Web-App**: ein Fastify-Prozess serviert die REST-API unter `/api` **und** das gebaute React-SPA (gleiche Origin, daher praktisch kein CORS). Tauri ist nicht im Einsatz; `src-tauri/` existiert nicht. Die Routenliste weiter unten ist unter `/api` erreichbar (z. B. `/api/auth/login`).
+
+## Implementierungsstand
+
+Vertikaler Durchstich (M0–M4) steht: **Login → Projekt → LV → Position aus ÖNORM-Katalog → Kalkulation → Summen**.
+
+- **API** (`packages/api/src`): modular — `app.ts` baut die Instanz, `plugins/` (prisma, auth), `routes/` (health, auth, katalog, projekte, lvs, kalkulation) unter `/api`, `services/kalkulation.ts` (reine Engine). Auth = bcrypt + JWT.
+- **Prisma**: Baseline-Migration vorhanden (`prisma/migrations/0_init`). `KatalogPosition` um ÖNORM-Hierarchie erweitert. Seed-Admin in `prisma/seed.ts`.
+- **Katalog-Import** (`prisma/import-onlb.ts`): parst ÖNORM A2063:2021 `.onlb` (XML), `--dry` für Verifikation ohne DB. Gegen LB-HB-023: ~19.700 Positionen.
+- **Web** (`packages/desktop/src`): Auth-Context (`lib/auth`), Seiten ProjekteListe/ProjektDetail/LVEditor/Kalkulation/Katalog, `KatalogPicker`-Modal, `lib/api` (Token in localStorage).
+- **MCP** (`packages/mcp/src/index.ts`): read-Tools + `create_angebot`, direkter PrismaClient.
+
+**Noch offen:** PDF/Excel-Export, LV-Versionierung, restliche CRUD-Breite (Angebote-Seite, Einstellungen).
 
 ## Stolperfallen
 
-- **MCP-Package fehlt `zod`**: `packages/mcp/src/index.ts` importiert `zod`, aber es steht nicht in `packages/mcp/package.json`. Vor `dev:mcp`/`build` ergänzen.
-- **Prisma Client vor Build generieren**: api und mcp importieren `@prisma/client`. Nach `pnpm install` bzw. Schema-Änderung zuerst `db:generate`, sonst Build-/Typfehler.
-- **Top-Level `await`** wird in api/mcp `index.ts` genutzt (tsconfig: `module: NodeNext`, `target: ES2022`). Beibehalten.
-- **Decimal-Felder**: Prisma liefert `Decimal`-Objekte (nicht `number`). Beim Rechnen wie im MCP per `Number(...)` konvertieren.
-- **JWT-Secret**: API fällt ohne `JWT_SECRET` auf ein Dev-Default zurück — für echten Betrieb in `.env` setzen.
+- **Prisma Client vor Build generieren**: nach `pnpm install` bzw. Schema-Änderung zuerst `pnpm db:generate`, sonst Typfehler.
+- **Top-Level `await`** in api/mcp (tsconfig: `module: NodeNext`/`ESNext`, `target: ES2022`). Beibehalten.
+- **Decimal-Felder**: Prisma liefert `Decimal` (JSON-serialisiert als **String**). Vor Rechnen per `Number(...)` konvertieren (Frontend: `lib/format.toNum`).
+- **JWT-Secret**: ohne `JWT_SECRET` (≥32 Zeichen) nur Dev-Fallback — in `.env` setzen.
+- **Auth-Kapselung**: `projekte`/`lvs`/`kalkulation` setzen `app.addHook('onRequest', app.authenticate)` plugin-lokal; nur weil jede Routendatei als eigenes `register()`-Plugin läuft, leakt der Hook nicht auf `/auth/login`.
 
 ## Projektübersicht
 

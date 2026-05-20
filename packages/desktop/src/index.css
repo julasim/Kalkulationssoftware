@@ -37,3 +37,27 @@ body {
   background: #ffffff;
   -webkit-font-smoothing: antialiased;
 }
+
+/* ÖNORM-Langtext (bereinigtes Light-HTML aus dem Katalog) */
+.lv-langtext p {
+  margin: 0 0 0.4em;
+}
+.lv-langtext p:last-child {
+  margin-bottom: 0;
+}
+.lv-langtext ul {
+  list-style: disc;
+  margin: 0.3em 0;
+  padding-left: 1.2em;
+}
+.lv-langtext li {
+  margin: 0.1em 0;
+}
+.lv-langtext sup {
+  vertical-align: super;
+  font-size: 0.75em;
+}
+.lv-langtext sub {
+  vertical-align: sub;
+  font-size: 0.75em;
+}

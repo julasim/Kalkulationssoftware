@@ -76,3 +76,30 @@ export interface ImportJobStatus {
   message: string | null
   leistungsbuchId: string | null
 }
+
+// ─── Stammdaten / Betriebsmittel ─────────────────────────────────────────────
+export type BetriebsmittelArt = 'lohn' | 'material' | 'geraet' | 'sonstiges' | 'nu'
+
+export interface Betriebsmittel {
+  id: string
+  art: BetriebsmittelArt
+  bezeichnung: string
+  kennung: string | null
+  einheit: string
+  kostenProEinheit: Dezimal
+  aufschlag: Dezimal
+  gruppe: string | null
+  notiz: string | null
+  aktiv: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Zuschlagsschema {
+  id: string
+  bezeichnung: string
+  agkProzent: Dezimal
+  guProzent: Dezimal
+  gewinnProzent: Dezimal
+  istStandard: boolean
+}

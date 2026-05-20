@@ -23,6 +23,21 @@ async function main() {
   if (!process.env.SEED_ADMIN_PASSWORD) {
     console.log(`  Standard-Passwort: '${password}' — bitte nach erstem Login ändern.`)
   }
+
+  // Standard-Zuschlagsschema (Default für Kalkulationen). Idempotent über fixe id.
+  await prisma.zuschlagsschema.upsert({
+    where: { id: 'standard' },
+    update: {},
+    create: {
+      id: 'standard',
+      bezeichnung: 'Standard',
+      agkProzent: 5,
+      guProzent: 3,
+      gewinnProzent: 3,
+      istStandard: true,
+    },
+  })
+  console.log('Seed: Standard-Zuschlagsschema bereit.')
 }
 
 main()

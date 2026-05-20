@@ -7,6 +7,7 @@ import LVEditor from './pages/LVEditor'
 import Kalkulation from './pages/Kalkulation'
 import Katalog from './pages/Katalog'
 import Leistungsbuecher from './pages/Leistungsbuecher'
+import Stammdaten from './pages/Stammdaten'
 import Angebote from './pages/Angebote'
 import Einstellungen from './pages/Einstellungen'
 import { useAuth } from './lib/auth'
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="lvs/:lvId/positionen/:positionId/kalkulation" element={<Kalkulation />} />
         <Route path="katalog" element={<Katalog />} />
         <Route path="leistungsbuecher" element={<Leistungsbuecher />} />
+        <Route path="stammdaten" element={<Stammdaten />} />
         <Route path="angebote" element={<Angebote />} />
         <Route path="einstellungen" element={<Einstellungen />} />
         <Route path="*" element={<Navigate to="/projekte" replace />} />

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "lv-manager": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["packages/mcp/dist/index.js"],
+      "env": {
+        "DATABASE_URL": "postgresql://lv_user:deinpasswort@localhost:5432/lv_manager"
+      }
+    }
+  }
+}

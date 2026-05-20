@@ -1,0 +1,32 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+*.env
+
+# Prisma
+packages/api/prisma/migrations/*.sql.bak
+
+# Tauri
+packages/desktop/src-tauri/target/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Große Testdaten / Katalog-Quelldateien (nicht versionieren)
+Test Daten/
+*.onlb
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+.idea/
+
+# Claude Code (maschinen-lokal)
+.claude/settings.local.json

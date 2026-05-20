@@ -1,0 +1,9 @@
+**/node_modules
+**/dist
+**/build
+packages/desktop/src-tauri/target
+.git
+.env
+**/.env
+**/*.log
+Test Daten

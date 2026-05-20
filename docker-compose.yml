@@ -1,3 +1,5 @@
+name: Kalkulationssoftware
+
 services:
   db:
     image: postgres:16
@@ -9,25 +11,37 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lv_user} -d ${POSTGRES_DB:-lv_manager}"]
+      test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
       interval: 5s
       timeout: 5s
       retries: 10
 
-  app:
-    build: .
+  api:
+    build:
+      context: .
+      dockerfile: packages/api/Dockerfile
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-lv_user}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-lv_manager}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET muss in .env gesetzt sein}
       PORT: 3000
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-julius@sima.or.at}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+    expose:
+      - "3000"
+
+  web:
+    build:
+      context: .
+      dockerfile: packages/desktop/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
     ports:
-      - "${APP_PORT:-3000}:3000"
+      - "${HTTP_PORT:-80}:80"
 
 volumes:
-  db_data:
+  db_data: {}

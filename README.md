@@ -1,54 +1,67 @@
 # LV-Manager
 
 Interne Web-App für SIMA Architecture zur Erstellung, Kalkulation und Verwaltung von
-Leistungsverzeichnissen (LV) nach ÖNORM. Läuft als Web-Anwendung auf einem eigenen Server:
-ein Fastify-Prozess liefert die REST-API **und** das gebaute React-SPA aus, PostgreSQL als
-Datenbank. Architektur- und Datenmodell-Details siehe [CLAUDE.md](CLAUDE.md).
+Leistungsverzeichnissen (LV) nach ÖNORM. Läuft als Web-Anwendung auf einem eigenen Server.
+Deployment als Multi-Container-Setup über Docker Compose (Projekt `Kalkulationssoftware`):
+ein **web**-Container (nginx) liefert das gebaute React-SPA aus und proxyt `/api` intern an
+den **api**-Container (Fastify), Daten liegen im **db**-Container (PostgreSQL).
+Architektur- und Datenmodell-Details siehe [CLAUDE.md](CLAUDE.md).
 
 ## Stack
 
 React 18 + Vite + Tailwind (Web-UI) · Fastify + Prisma (API) · PostgreSQL · pnpm-Monorepo.
 
-## Deployment auf dem Server (Docker)
+## Deployment auf dem Server (Docker Compose)
 
-Voraussetzung: Docker + Docker Compose auf dem VPS.
+Voraussetzung: Docker Engine + Docker-Compose-Plugin (v2) auf dem VPS. Das Compose-Projekt
+heißt `Kalkulationssoftware` und besteht aus drei Services: **db** (PostgreSQL, nicht nach
+außen veröffentlicht), **api** (Fastify, nur intern unter `api:3000`) und **web** (nginx,
+liefert das SPA und proxyt `/api` an die API; einziger nach außen offener Port).
+
+### Schnellstart per Script (empfohlen)
 
 ```bash
-git clone <REPO-URL> lv-manager && cd lv-manager
+git clone <REPO-URL> Kalkulationssoftware && cd Kalkulationssoftware
+./install.sh
+```
+
+`install.sh` ist idempotent: Es prüft Docker, erzeugt eine fehlende `.env` aus `.env.example`
+mit sicheren Zufallswerten (`JWT_SECRET`, `POSTGRES_PASSWORD`), baut und startet alle Container
+(`docker compose up -d --build`) und legt den Erst-Admin an (`db:seed`, mit Retry, da `api`
+evtl. noch startet). Eine bereits vorhandene `.env` bleibt unangetastet.
+
+### Manuell
+
+```bash
 cp .env.example .env          # Werte anpassen — v.a. POSTGRES_PASSWORD und JWT_SECRET
-docker compose up -d --build  # baut App-Image, startet Postgres + App
+docker compose up -d --build  # baut api- und web-Image, startet db/api/web
+docker compose exec -T api corepack pnpm --filter api db:seed   # Erst-Admin (siehe SEED_ADMIN_* in .env)
 ```
 
-Beim Start wendet der App-Container die DB-Migrationen automatisch an (`prisma migrate deploy`).
-Danach den Erst-Admin anlegen:
+Beim Start wendet der `api`-Container die DB-Migrationen automatisch an (`prisma migrate deploy`).
+
+Für den ÖNORM-Katalog-Import die `.onlb`-Datei zuerst in den `api`-Container kopieren — sie ist
+**nicht** im Image enthalten, der Host-Pfad existiert im Container also nicht:
 
 ```bash
-docker compose exec app pnpm db:seed                 # Admin-User (siehe SEED_ADMIN_* in .env)
+docker compose cp ./LB-HB-023-2021.onlb api:/tmp/katalog.onlb   # Datei in den Container kopieren
+docker compose exec -T api corepack pnpm --filter api db:import-onlb /tmp/katalog.onlb
 ```
 
-Für den ÖNORM-Katalog-Import die `.onlb`-Datei zuerst in den Container kopieren — sie ist
-**nicht** im Image enthalten (per `.dockerignore` ausgeschlossen), der Host-Pfad existiert im
-Container also nicht:
-
-```bash
-docker compose cp ./LB-HB-023-2021.onlb app:/tmp/katalog.onlb   # Datei in den Container kopieren
-docker compose exec app pnpm --filter api db:import-onlb /tmp/katalog.onlb
-```
-
-Alternativ die Datei (oder ihr Verzeichnis) als Volume in den `app`-Service mounten und den
+Alternativ die Datei (oder ihr Verzeichnis) als Volume in den `api`-Service mounten und den
 containerinternen Pfad direkt verwenden.
 
-Die App ist anschließend unter `http://<server>:${APP_PORT}` (Default 3000) erreichbar.
-Für HTTPS einen Reverse-Proxy (nginx/Caddy/Traefik) davorschalten, der auf den App-Port verweist.
+Die Web-UI ist anschließend unter `http://<server>:${HTTP_PORT}` (Default 80) erreichbar.
+Für HTTPS einen Reverse-Proxy (nginx/Caddy/Traefik) davorschalten, der auf den web-Port verweist.
 
 ### Wichtige Umgebungsvariablen (`.env`)
 
 | Variable | Zweck |
 |---|---|
-| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | PostgreSQL-Container |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | PostgreSQL-Container, zugleich Quelle der `DATABASE_URL` des api-Service |
 | `JWT_SECRET` | Signatur der Auth-Tokens, mind. 32 Zeichen zufällig |
-| `APP_PORT` | Host-Port der App (Default 3000) |
-| `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | Erst-Admin für `db:seed` |
+| `HTTP_PORT` | Host-Port der Web-UI (Default 80) |
+| `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | Erst-Admin für `db:seed` (Passwort leer = Standard `changeme123`) |
 
 ## Lokale Entwicklung
 

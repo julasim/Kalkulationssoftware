@@ -13,10 +13,13 @@ React 18 + Vite + Tailwind (Web-UI) · Fastify + Prisma (API) · PostgreSQL · p
 
 ## Deployment auf dem Server (Docker Compose)
 
-Voraussetzung: Docker Engine + Docker-Compose-Plugin (v2) auf dem VPS. Das Compose-Projekt
-heißt `Kalkulationssoftware` und besteht aus drei Services: **db** (PostgreSQL, nicht nach
-außen veröffentlicht), **api** (Fastify, nur intern unter `api:3000`) und **web** (nginx,
-liefert das SPA und proxyt `/api` an die API; einziger nach außen offener Port).
+Voraussetzung: Docker Engine + Docker-Compose-Plugin (v2) auf dem VPS, sowie ein zentraler
+**Caddy-Edge-Proxy**, der ein externes Docker-Netz bereitstellt und TLS/Domain-Routing
+übernimmt. Das Compose-Projekt heißt `Kalkulationssoftware` und besteht aus drei Services:
+**db** (PostgreSQL) und **api** (Fastify, `api:3000`) bleiben rein im privaten Netz; **web**
+(nginx) liefert das SPA, proxyt `/api` intern an die API und ist der einzige Service am
+Edge-Proxy-Netz. Es wird **kein Host-Port veröffentlicht** — der Edge-Proxy erreicht `web`
+über das gemeinsame Netz (Alias `kalkulationssoftware`).
 
 ### Schnellstart per Script (empfohlen)
 
@@ -51,8 +54,23 @@ docker compose exec -T api corepack pnpm --filter api db:import-onlb /tmp/katalo
 Alternativ die Datei (oder ihr Verzeichnis) als Volume in den `api`-Service mounten und den
 containerinternen Pfad direkt verwenden.
 
-Die Web-UI ist anschließend unter `http://<server>:${HTTP_PORT}` (Default 80) erreichbar.
-Für HTTPS einen Reverse-Proxy (nginx/Caddy/Traefik) davorschalten, der auf den web-Port verweist.
+### Anbindung an den Edge-Proxy
+
+Das externe Proxy-Netz muss existieren (`docker network ls`) und in `.env` als `PROXY_NETWORK`
+eingetragen sein (Default `proxy`). `install.sh` prüft das vor dem Start. Im Caddyfile des
+zentralen Edge-Proxys einen Block pro Domain ergänzen und den Proxy neu laden:
+
+```
+kalkulation.sima.business {
+    encode gzip zstd
+    reverse_proxy kalkulationssoftware:80
+}
+```
+
+Sobald der DNS-A-Record der Domain auf die Server-IP zeigt, holt Caddy beim ersten Request
+automatisch ein TLS-Zertifikat. Danach ist die App unter `https://<domain>` erreichbar. Die
+App hat aktuell keine Streaming-Endpunkte (SSE/WebSocket) — falls später welche dazukommen,
+im Caddy-Block `flush_interval -1` + lange Timeouts ergänzen.
 
 ### Wichtige Umgebungsvariablen (`.env`)
 
@@ -60,7 +78,8 @@ Für HTTPS einen Reverse-Proxy (nginx/Caddy/Traefik) davorschalten, der auf den 
 |---|---|
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | PostgreSQL-Container, zugleich Quelle der `DATABASE_URL` des api-Service |
 | `JWT_SECRET` | Signatur der Auth-Tokens, mind. 32 Zeichen zufällig |
-| `HTTP_PORT` | Host-Port der Web-UI (Default 80) |
+| `PROXY_NETWORK` | Name des externen Edge-Proxy-Netzes (Default `proxy`; via `docker network ls` prüfen) |
+| `DOMAIN` | Domain für den Caddyfile-Block / die Abschluss-Ausgabe |
 | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | Erst-Admin für `db:seed` (Passwort leer = Standard `changeme123`) |
 
 ## Lokale Entwicklung

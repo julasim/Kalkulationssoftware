@@ -72,9 +72,21 @@ else
   echo "  -> JWT_SECRET und POSTGRES_PASSWORD wurden zufällig gesetzt."
 fi
 
-# HTTP_PORT für die Abschluss-Ausgabe einlesen (Default 80).
-HTTP_PORT="$(sed -n 's|^HTTP_PORT=\(.*\)$|\1|p' "$ENV_FILE" | head -n1)"
-HTTP_PORT="${HTTP_PORT:-80}"
+# Edge-Proxy-Variablen einlesen (für Netz-Check und Abschluss-Ausgabe).
+PROXY_NETWORK="$(sed -n 's|^PROXY_NETWORK=\(.*\)$|\1|p' "$ENV_FILE" | head -n1)"
+PROXY_NETWORK="${PROXY_NETWORK:-proxy}"
+DOMAIN="$(sed -n 's|^DOMAIN=\(.*\)$|\1|p' "$ENV_FILE" | head -n1)"
+DOMAIN="${DOMAIN:-<deine-domain>}"
+
+# Externes Proxy-Netz des Edge-Proxys muss existieren (wird hier NICHT erstellt).
+if ! docker network inspect "$PROXY_NETWORK" >/dev/null 2>&1; then
+  echo "FEHLER: Externes Docker-Netz '$PROXY_NETWORK' existiert nicht." >&2
+  echo "        Es wird vom zentralen Edge-Proxy bereitgestellt." >&2
+  echo "        Vorhandene Netze:" >&2
+  docker network ls --format '  - {{.Name}}' >&2
+  echo "        Passenden Namen in .env als PROXY_NETWORK eintragen und erneut starten." >&2
+  exit 1
+fi
 
 # ─── 3. Compose starten + Images bauen ───────────────────────────────────────
 echo "Baue Images und starte Container (db/api/web) ..."
@@ -99,22 +111,29 @@ if [ "$SEED_OK" -ne 1 ]; then
 fi
 
 # ─── 5. Abschluss-Ausgabe ─────────────────────────────────────────────────────
-SERVER_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
-SERVER_IP="${SERVER_IP:-<server-ip>}"
-
 cat <<EOF
 
 ════════════════════════════════════════════════════════════════════════════
-  Setup abgeschlossen.
+  Setup abgeschlossen — Container laufen im Projekt 'Kalkulationssoftware'.
 
-  Web-UI erreichbar unter:   http://${SERVER_IP}:${HTTP_PORT}
+  Die App hängt am Edge-Proxy-Netz '${PROXY_NETWORK}' (Alias: kalkulationssoftware)
+  und veröffentlicht selbst KEINEN Host-Port.
+
+  Damit sie erreichbar wird, im Caddyfile des Edge-Proxys diesen Block ergänzen
+  und den Proxy neu laden:
+
+    ${DOMAIN} {
+        encode gzip zstd
+        reverse_proxy kalkulationssoftware:80
+    }
+
+  Danach erreichbar unter:   https://${DOMAIN}
 
   Admin-Login: siehe SEED_ADMIN_EMAIL in .env.
   Passwort:    SEED_ADMIN_PASSWORD aus .env — falls leer, gilt 'changeme123'
                (bitte nach dem ersten Login unbedingt ändern).
 
-  ÖNORM-Katalog (LB-HB) importieren — .onlb-Datei in den api-Container kopieren
-  und Import starten:
+  ÖNORM-Katalog (LB-HB) importieren:
 
     docker compose cp ./LB-HB-023-2021.onlb api:/tmp/katalog.onlb
     docker compose exec -T api corepack pnpm --filter api db:import-onlb /tmp/katalog.onlb

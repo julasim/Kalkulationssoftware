@@ -30,7 +30,11 @@ Es gibt **kein Test-Setup** (kein Vitest/Jest). Verifikation läuft über `tsc -
 
 ## Architektur-Hinweis (Web statt Tauri)
 
-Statt der ursprünglich geplanten Tauri-Desktop-App ist dies eine **Web-App**: ein Fastify-Prozess serviert die REST-API unter `/api` **und** das gebaute React-SPA (gleiche Origin, daher praktisch kein CORS). Tauri ist nicht im Einsatz; `src-tauri/` existiert nicht. Die Routenliste weiter unten ist unter `/api` erreichbar (z. B. `/api/auth/login`).
+Statt der ursprünglich geplanten Tauri-Desktop-App ist dies eine **Web-App** (kein Tauri, kein `src-tauri/`). Alle API-Routen liegen unter dem `/api`-Prefix (z. B. `/api/auth/login`).
+
+**Deployment (Produktion):** Multi-Container via Docker Compose, Projekt `Kalkulationssoftware` — `web` (nginx, liefert SPA + proxyt `/api` an `api:3000`) ist der einzige Service am externen Edge-Proxy-Netz (`PROXY_NETWORK`, Default `proxy`; Alias `kalkulationssoftware`); `api` (Fastify) und `db` (PostgreSQL) bleiben rein privat, kein Host-Port. Ein zentraler Caddy-Edge-Proxy macht TLS + Domain-Routing. Im API-Image fehlt `packages/desktop/dist`, daher läuft die API dort im „nur /api"-Modus — das `@fastify/static`-SPA-Serving in `app.ts` greift nur, wenn `dist` vorhanden ist (z. B. lokal).
+
+**Lokal:** `pnpm dev:web` (Vite :5173, proxyt `/api`) + `pnpm dev:api` (:3000).
 
 ## Implementierungsstand
 

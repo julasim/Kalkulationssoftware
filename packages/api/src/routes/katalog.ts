@@ -2,7 +2,19 @@ import type { FastifyInstance } from 'fastify'
 
 export default async function katalogRoutes(app: FastifyInstance) {
   // Volltextsuche über Kurztext, Positionsnummer und Langtext.
-  app.get('/katalog/search', { onRequest: [app.authenticate] }, async (request) => {
+  app.get('/katalog/search', {
+    onRequest: [app.authenticate],
+    schema: {
+      querystring: {
+        type: 'object',
+        properties: {
+          q: { type: 'string' },
+          limit: { type: 'string' },
+          quelle: { type: 'string' },
+        },
+      },
+    },
+  }, async (request) => {
     const { q, limit, quelle } = request.query as { q?: string; limit?: string; take?: string; quelle?: string }
     const term = (q ?? '').trim()
     const take = Math.min(Math.max(Number(limit) || 30, 1), 100)

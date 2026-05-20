@@ -39,7 +39,74 @@ export default async function kalkulationRoutes(app: FastifyInstance) {
     }
   })
 
-  app.put('/positionen/:id/kalkulation', async (request, reply) => {
+  app.put('/positionen/:id/kalkulation', {
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          agkProzent: { type: 'number' },
+          guProzent: { type: 'number' },
+          gewinnProzent: { type: 'number' },
+          lohnzeilen: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                bezeichnung: { type: 'string' },
+                aufwandswert: { type: 'number' },
+                stundensatz: { type: 'number' },
+              },
+            },
+          },
+          materialzeilen: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                bezeichnung: { type: 'string' },
+                menge: { type: 'number' },
+                einheit: { type: 'string' },
+                preis: { type: 'number' },
+                aufschlag: { type: 'number' },
+              },
+            },
+          },
+          geraetezeilen: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                bezeichnung: { type: 'string' },
+                menge: { type: 'number' },
+                einheit: { type: 'string' },
+                preis: { type: 'number' },
+              },
+            },
+          },
+          nuZeilen: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                bezeichnung: { type: 'string' },
+                betrag: { type: 'number' },
+              },
+            },
+          },
+          sonstigeZeilen: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                bezeichnung: { type: 'string' },
+                betrag: { type: 'number' },
+              },
+            },
+          },
+        },
+      },
+    },
+  }, async (request, reply) => {
     const { id } = request.params as { id: string }
     const body = request.body as any
 

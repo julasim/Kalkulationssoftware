@@ -12,7 +12,19 @@ export default async function projekteRoutes(app: FastifyInstance) {
     return { projekte }
   })
 
-  app.post('/projekte', async (request, reply) => {
+  app.post('/projekte', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['name'],
+        properties: {
+          name: { type: 'string', minLength: 1 },
+          beschreibung: { type: ['string', 'null'] },
+          ort: { type: ['string', 'null'] },
+        },
+      },
+    },
+  }, async (request, reply) => {
     const body = request.body as { name?: string; beschreibung?: string; ort?: string }
     const name = body?.name?.trim()
     if (!name) return reply.code(400).send({ error: 'Name erforderlich', code: 'BAD_REQUEST' })
@@ -38,7 +50,25 @@ export default async function projekteRoutes(app: FastifyInstance) {
     return projekt
   })
 
-  app.put('/projekte/:id', async (request, reply) => {
+  app.put('/projekte/:id', {
+    schema: {
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+        },
+      },
+      body: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          beschreibung: { type: ['string', 'null'] },
+          ort: { type: ['string', 'null'] },
+          status: { type: 'string', enum: ['offen', 'in_arbeit', 'abgeschlossen', 'archiviert'] },
+        },
+      },
+    },
+  }, async (request, reply) => {
     const { id } = request.params as { id: string }
     const body = request.body as {
       name?: string; beschreibung?: string | null; ort?: string | null; status?: string

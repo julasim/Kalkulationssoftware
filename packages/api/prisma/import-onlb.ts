@@ -6,12 +6,18 @@ const prisma = new PrismaClient()
 
 // ─── Hilfsfunktionen ──────────────────────────────────────────────────────────
 
-const ALLOWED_TAGS = new Set(['p', 'br', 'sup', 'sub', 'b', 'i', 'u', 'ul', 'li'])
+const ALLOWED_TAGS = new Set([
+  'p', 'br', 'sup', 'sub', 'b', 'i', 'u', 'ul', 'li',
+  'table', 'thead', 'tbody', 'tr', 'td', 'th',
+])
 
 /** Bereinigt ÖNORM-Langtext-Markup auf ein sicheres Light-HTML-Subset. */
 function sanitizeHtml(raw: unknown): string | null {
   if (raw == null) return null
   let s = String(raw)
+  // <al>…</al> ist eine auszufüllende Lücke: leer → sichtbarer Platzhalter,
+  // sonst der Inhalt selbst. Vor der übrigen Tag-Bereinigung ersetzen.
+  s = s.replace(/<al>([\s\S]*?)<\/al>/g, (_m, inner) => (inner.trim() ? inner : '_____'))
   s = s.replace(/<\/?([a-zA-Z][a-zA-Z0-9]*)\b[^>]*?(\/?)>/g, (_m, tag: string, selfSlash: string) => {
     const t = tag.toLowerCase()
     if (!ALLOWED_TAGS.has(t)) return ''
@@ -172,19 +178,34 @@ async function main() {
     return
   }
 
-  // Idempotent: bestehende Positionen dieser Quelle ersetzen.
-  const del = await prisma.katalogPosition.deleteMany({ where: { quelle } })
-  if (del.count) console.log(`Bestehende ${del.count} Positionen der Quelle '${quelle}' entfernt.`)
-
-  const CHUNK = 1000
-  let inserted = 0
+  // Idempotent & verknüpfungserhaltend: per upsert auf (quelle, posNummer)
+  // schreiben — unveränderte Positionen behalten ihre ID (und damit den
+  // katalogPosId-Bezug bestehender LV-Positionen).
+  const CHUNK = 200
+  let written = 0
   for (let i = 0; i < rows.length; i += CHUNK) {
     const batch = rows.slice(i, i + CHUNK)
-    const res = await prisma.katalogPosition.createMany({ data: batch, skipDuplicates: true })
-    inserted += res.count
-    process.stdout.write(`\r  importiert: ${inserted}/${rows.length}`)
+    await Promise.all(
+      batch.map((row) => {
+        const { quelle: _q, posNummer: _p, ...update } = row
+        return prisma.katalogPosition.upsert({
+          where: { quelle_posNummer: { quelle, posNummer: row.posNummer } },
+          create: row,
+          update,
+        })
+      }),
+    )
+    written += batch.length
+    process.stdout.write(`\r  geschrieben: ${written}/${rows.length}`)
   }
-  console.log(`\nFertig. ${inserted} Katalogpositionen aus '${lbNummer}' importiert.`)
+  console.log(`\nFertig. ${written} Katalogpositionen aus '${lbNummer}' geschrieben.`)
+
+  // Veraltete Positionen entfernen, die in der neuen Datei nicht mehr vorkommen.
+  const allePosNummern = rows.map((r) => r.posNummer)
+  const del = await prisma.katalogPosition.deleteMany({
+    where: { quelle, posNummer: { notIn: allePosNummern } },
+  })
+  if (del.count) console.log(`Veraltete Positionen entfernt: ${del.count}.`)
 }
 
 main()

@@ -3,7 +3,18 @@ import bcrypt from 'bcrypt'
 import type { JwtUser } from '../plugins/auth.js'
 
 export default async function authRoutes(app: FastifyInstance) {
-  app.post('/auth/login', async (request, reply) => {
+  app.post('/auth/login', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['email', 'password'],
+        properties: {
+          email: { type: 'string' },
+          password: { type: 'string' },
+        },
+      },
+    },
+  }, async (request, reply) => {
     const body = request.body as { email?: string; password?: string }
     const email = body?.email?.trim().toLowerCase()
     const password = body?.password

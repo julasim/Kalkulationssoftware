@@ -27,7 +27,17 @@ export default async function lvRoutes(app: FastifyInstance) {
     return lv
   })
 
-  app.put('/lvs/:id', async (request, reply) => {
+  app.put('/lvs/:id', {
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          bezeichnung: { type: 'string' },
+          notiz: { type: ['string', 'null'] },
+        },
+      },
+    },
+  }, async (request, reply) => {
     const { id } = request.params as { id: string }
     const body = request.body as { bezeichnung?: string; notiz?: string | null }
     try {
@@ -45,7 +55,19 @@ export default async function lvRoutes(app: FastifyInstance) {
   })
 
   // ─── Titel ────────────────────────────────────────────────────────────────
-  app.post('/lvs/:id/titel', async (request, reply) => {
+  app.post('/lvs/:id/titel', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['bezeichnung'],
+        properties: {
+          bezeichnung: { type: 'string', minLength: 1 },
+          nummer: { type: 'string' },
+          parentId: { type: ['string', 'null'] },
+        },
+      },
+    },
+  }, async (request, reply) => {
     const { id } = request.params as { id: string }
     const body = request.body as { nummer?: string; bezeichnung?: string; parentId?: string }
     const bezeichnung = body?.bezeichnung?.trim()
@@ -80,7 +102,24 @@ export default async function lvRoutes(app: FastifyInstance) {
 
   // ─── Positionen ───────────────────────────────────────────────────────────
   // Anlegen — optional aus einer Katalogposition übernommen.
-  app.post('/lvs/:id/positionen', async (request, reply) => {
+  app.post('/lvs/:id/positionen', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['titelId'],
+        properties: {
+          titelId: { type: 'string' },
+          katalogPosId: { type: ['string', 'null'] },
+          nummer: { type: 'string' },
+          kurztext: { type: 'string' },
+          langtext: { type: ['string', 'null'] },
+          einheit: { type: 'string' },
+          menge: { type: 'number' },
+          typ: { type: 'string', enum: ['normal', 'alternativ', 'eventualposition', 'pauschale'] },
+        },
+      },
+    },
+  }, async (request, reply) => {
     const body = request.body as {
       titelId?: string
       katalogPosId?: string
@@ -132,7 +171,21 @@ export default async function lvRoutes(app: FastifyInstance) {
     return reply.code(201).send(position)
   })
 
-  app.put('/positionen/:id', async (request, reply) => {
+  app.put('/positionen/:id', {
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          nummer: { type: 'string' },
+          kurztext: { type: 'string' },
+          langtext: { type: ['string', 'null'] },
+          einheit: { type: 'string' },
+          menge: { type: 'number' },
+          typ: { type: 'string', enum: ['normal', 'alternativ', 'eventualposition', 'pauschale'] },
+        },
+      },
+    },
+  }, async (request, reply) => {
     const { id } = request.params as { id: string }
     const body = request.body as {
       nummer?: string; kurztext?: string; langtext?: string | null

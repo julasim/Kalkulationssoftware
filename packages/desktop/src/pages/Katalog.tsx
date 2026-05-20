@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
+import type { Leistungsbuch } from '../lib/types'
 
 export interface KatalogTreffer {
   id: string
@@ -10,6 +11,7 @@ export interface KatalogTreffer {
   einheit: string
   quelle: string
   lbNummer: string
+  leistungsbuchId: string
   lgNr: string | null
   ulgNr: string | null
   lgBezeichnung: string | null
@@ -23,6 +25,15 @@ export default function Katalog() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
+  const [buecher, setBuecher] = useState<Leistungsbuch[]>([])
+  const [filterId, setFilterId] = useState('')
+
+  useEffect(() => {
+    api
+      .get<{ leistungsbuecher: Leistungsbuch[] }>('/leistungsbuecher')
+      .then((r) => setBuecher(r.leistungsbuecher.filter((b) => b.aktiv)))
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     const term = query.trim()
@@ -34,9 +45,10 @@ export default function Katalog() {
     const handle = setTimeout(() => {
       setLoading(true)
       setError(null)
+      const lbParam = filterId ? `&leistungsbuchId=${filterId}` : ''
       api
         .get<{ results: KatalogTreffer[]; total: number }>(
-          `/katalog/search?q=${encodeURIComponent(term)}&limit=50`,
+          `/katalog/search?q=${encodeURIComponent(term)}&limit=50${lbParam}`,
         )
         .then((res) => {
           setResults(res.results)
@@ -46,20 +58,34 @@ export default function Katalog() {
         .finally(() => setLoading(false))
     }, 250)
     return () => clearTimeout(handle)
-  }, [query])
+  }, [query, filterId])
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="border-b border-gray-200 px-6 py-4">
         <div className="text-lg font-semibold text-gray-900">Katalog</div>
         <div className="mt-0.5 text-[12px] text-gray-400">ÖNORM-Leistungsbuch durchsuchen</div>
-        <input
-          autoFocus
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Suche nach Stichwort, Positionsnummer oder Text …"
-          className="mt-3 w-full max-w-xl rounded-md border border-gray-300 px-3 py-2 text-[13px] outline-none focus:border-gray-900"
-        />
+        <div className="mt-3 flex max-w-xl gap-2">
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Suche nach Stichwort, Positionsnummer oder Text …"
+            className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-[13px] outline-none focus:border-gray-900"
+          />
+          <select
+            value={filterId}
+            onChange={(e) => setFilterId(e.target.value)}
+            className="rounded-md border border-gray-300 px-2 py-2 text-[13px] text-gray-700 outline-none focus:border-gray-900"
+          >
+            <option value="">Alle Bücher</option>
+            {buecher.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.kennung} {b.versionsnummer}
+              </option>
+            ))}
+          </select>
+        </div>
         {query.trim().length >= 2 && !loading && (
           <div className="mt-2 text-[11px] text-gray-400">
             {total} Treffer{total > results.length ? ` (zeige ${results.length})` : ''}

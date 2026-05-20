@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import healthRoutes from './health.js'
 import authRoutes from './auth.js'
 import katalogRoutes from './katalog.js'
+import leistungsbuecherRoutes from './leistungsbuecher.js'
 import projekteRoutes from './projekte.js'
 import lvRoutes from './lvs.js'
 import kalkulationRoutes from './kalkulation.js'
@@ -12,6 +13,7 @@ export default async function routes(app: FastifyInstance) {
   await app.register(healthRoutes)
   await app.register(authRoutes)
   await app.register(katalogRoutes)
+  await app.register(leistungsbuecherRoutes)
   await app.register(projekteRoutes)
   await app.register(lvRoutes)
   await app.register(kalkulationRoutes)

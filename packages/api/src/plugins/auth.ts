@@ -11,6 +11,7 @@ export interface JwtUser {
 declare module 'fastify' {
   interface FastifyInstance {
     authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>
+    requireAdmin: (request: FastifyRequest, reply: FastifyReply) => Promise<void>
   }
 }
 
@@ -36,6 +37,18 @@ export default fp(async (app: FastifyInstance) => {
       await request.jwtVerify()
     } catch {
       return reply.code(401).send({ error: 'Nicht autorisiert', code: 'UNAUTHORIZED' })
+    }
+  })
+
+  // Wie authenticate, verlangt zusätzlich die Admin-Rolle (für Uploads/Verwaltung).
+  app.decorate('requireAdmin', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      await request.jwtVerify()
+    } catch {
+      return reply.code(401).send({ error: 'Nicht autorisiert', code: 'UNAUTHORIZED' })
+    }
+    if (request.user.role !== 'admin') {
+      return reply.code(403).send({ error: 'Nur für Administratoren', code: 'FORBIDDEN' })
     }
   })
 })

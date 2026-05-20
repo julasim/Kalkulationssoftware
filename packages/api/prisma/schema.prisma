@@ -200,17 +200,61 @@ model KalkulationSonstige {
   kalkulationId String
 }
 
-// ─── Katalog ──────────────────────────────────────────────────────────────────
+// ─── Katalog / Leistungsbücher ──────────────────────────────────────────────
+
+enum LeistungsbuchTyp {
+  oenorm   // importiertes ÖNORM-Leistungsbuch (read-only)
+  eigen    // eigener/Firmen-Stammkatalog (editierbar)
+}
+
+enum ImportStatus {
+  pending
+  running
+  done
+  error
+}
+
+model Leistungsbuch {
+  id             String           @id @default(cuid())
+  kennung        String           // z.B. "HB", "VI", "HT"
+  bezeichnung    String           // z.B. "Leistungsbeschreibung Hochbau"
+  versionsnummer String           // z.B. "23"
+  versionsdatum  DateTime?
+  herausgeber    String?
+  typ            LeistungsbuchTyp @default(oenorm)
+  aktiv          Boolean          @default(true)
+  dateiname      String?          // Original-Dateiname des Uploads
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  positionen     KatalogPosition[]
+  importJobs     ImportJob[]
+
+  @@unique([kennung, versionsnummer])
+}
+
+model ImportJob {
+  id              String         @id @default(cuid())
+  leistungsbuch   Leistungsbuch? @relation(fields: [leistungsbuchId], references: [id], onDelete: SetNull)
+  leistungsbuchId String?
+  dateiname       String
+  status          ImportStatus   @default(pending)
+  processed       Int            @default(0)
+  total           Int            @default(0)
+  message         String?
+  createdAt       DateTime       @default(now())
+  finishedAt      DateTime?
+}
 
 model KatalogPosition {
   id            String      @id @default(cuid())
-  lbNummer      String      // z.B. "LB-HB 23"
+  lbNummer      String      // z.B. "LB-HB 23" (denormalisiert, Anzeige)
   posNummer     String      // verkettet: LG+ULG+GT+FT, z.B. "001001A"
   kurztext      String      // <stichwort>
   langtext      String?     // Folgeposition-Langtext (bereinigtes Light-HTML)
   grundtextLang String?     // gemeinsamer Grundtext-Langtext (Light-HTML)
   einheit       String
-  quelle        String      // "LB-HB", "LB-H", "eigen"
+  quelle        String      // "LB-HB", "LB-H", "eigen" (denormalisiert, Anzeige)
   tags          String[]
 
   // ÖNORM-Hierarchie (A2063)
@@ -221,9 +265,12 @@ model KatalogPosition {
   lgBezeichnung  String?    // Überschrift der Leistungsgruppe
   ulgBezeichnung String?    // Überschrift der Untergruppe
 
+  leistungsbuch   Leistungsbuch @relation(fields: [leistungsbuchId], references: [id], onDelete: Cascade)
+  leistungsbuchId String
+
   positionen    Position[]
 
-  @@unique([quelle, posNummer])
+  @@unique([leistungsbuchId, posNummer])
   @@index([lgNr, ulgNr])
 }
 

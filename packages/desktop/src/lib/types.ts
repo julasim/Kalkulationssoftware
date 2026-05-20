@@ -49,3 +49,30 @@ export interface LVDetail extends LV {
   projekt: { id: string; name: string }
   titel: LVTitel[]
 }
+
+// ─── Leistungsbücher / Katalog ───────────────────────────────────────────────
+export type LeistungsbuchTyp = 'oenorm' | 'eigen'
+export type ImportStatus = 'pending' | 'running' | 'done' | 'error'
+
+export interface Leistungsbuch {
+  id: string
+  kennung: string
+  bezeichnung: string
+  versionsnummer: string
+  versionsdatum: string | null
+  herausgeber: string | null
+  typ: LeistungsbuchTyp
+  aktiv: boolean
+  dateiname: string | null
+  createdAt: string
+  updatedAt: string
+  _count?: { positionen: number }
+}
+
+export interface ImportJobStatus {
+  status: ImportStatus
+  processed: number
+  total: number
+  message: string | null
+  leistungsbuchId: string | null
+}

@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth'
 const navItems = [
   { to: '/projekte', label: 'Projekte', icon: '📁' },
   { to: '/katalog', label: 'Katalog', icon: '📖' },
+  { to: '/leistungsbuecher', label: 'Leistungsbücher', icon: '📚' },
   { to: '/angebote', label: 'Angebote', icon: '📄' },
   { to: '/einstellungen', label: 'Einstellungen', icon: '⚙️' },
 ]

@@ -1,6 +1,7 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import fastifyStatic from '@fastify/static'
+import multipart from '@fastify/multipart'
 import { fileURLToPath } from 'node:url'
 import { existsSync } from 'node:fs'
 import prismaPlugin from './plugins/prisma.js'
@@ -17,6 +18,9 @@ export async function buildApp() {
 
   await app.register(prismaPlugin)
   await app.register(authPlugin)
+
+  // Datei-Uploads (ONLB-Import) — eigenes Limit, unabhängig vom JSON-Body-Limit.
+  await app.register(multipart, { limits: { fileSize: 25 * 1024 * 1024, files: 1 } })
 
   // API unter /api
   await app.register(routes, { prefix: '/api' })
@@ -37,6 +41,12 @@ export async function buildApp() {
   } else {
     app.log.warn(`SPA-Verzeichnis nicht gefunden (${spaDir}) — nur API aktiv.`)
   }
+
+  // Recovery: beim Neustart hängengebliebene Import-Jobs als Fehler markieren.
+  await app.prisma.importJob.updateMany({
+    where: { status: 'running' },
+    data: { status: 'error', message: 'Import durch Neustart abgebrochen' },
+  })
 
   return app
 }

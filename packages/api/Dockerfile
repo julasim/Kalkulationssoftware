@@ -7,6 +7,10 @@ FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 
 RUN corepack enable
+# openssl im Builder, damit `prisma generate` die OpenSSL-Version (3.0) korrekt
+# erkennt und die passende Query-Engine erzeugt.
+RUN apt-get update && apt-get install -y --no-install-recommends openssl \
+    && rm -rf /var/lib/apt/lists/*
 
 # Manifeste + Lockfile zuerst (besseres Layer-Caching)
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.json ./

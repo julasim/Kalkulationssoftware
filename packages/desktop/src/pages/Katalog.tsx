@@ -42,6 +42,7 @@ export default function Katalog() {
       setTotal(0)
       return
     }
+    let cancelled = false
     const handle = setTimeout(() => {
       setLoading(true)
       setError(null)
@@ -51,20 +52,30 @@ export default function Katalog() {
           `/katalog/search?q=${encodeURIComponent(term)}&limit=50${lbParam}`,
         )
         .then((res) => {
+          if (cancelled) return
           setResults(res.results)
           setTotal(res.total)
         })
-        .catch((e) => setError(e instanceof Error ? e.message : 'Suche fehlgeschlagen'))
-        .finally(() => setLoading(false))
+        .catch((e) => {
+          if (!cancelled) setError(e instanceof Error ? e.message : 'Suche fehlgeschlagen')
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false)
+        })
     }, 250)
-    return () => clearTimeout(handle)
+    return () => {
+      cancelled = true
+      clearTimeout(handle)
+    }
   }, [query, filterId])
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="border-b border-gray-200 px-6 py-4">
         <div className="text-lg font-semibold text-gray-900">Katalog</div>
-        <div className="mt-0.5 text-[12px] text-gray-400">ÖNORM-Leistungsbuch durchsuchen</div>
+        <div className="mt-0.5 text-[12px] text-gray-400">
+          ÖNORM-Leistungsbuch durchsuchen · Positionen übernimmst du im LV-Editor über „+ Position aus Katalog"
+        </div>
         <div className="mt-3 flex max-w-xl gap-2">
           <input
             autoFocus

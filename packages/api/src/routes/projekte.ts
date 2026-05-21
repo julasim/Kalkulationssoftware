@@ -88,8 +88,11 @@ export default async function projekteRoutes(app: FastifyInstance) {
         },
       })
       return projekt
-    } catch {
-      return reply.code(404).send({ error: 'Projekt nicht gefunden', code: 'NOT_FOUND' })
+    } catch (err) {
+      if ((err as { code?: string }).code === 'P2025') {
+        return reply.code(404).send({ error: 'Projekt nicht gefunden', code: 'NOT_FOUND' })
+      }
+      throw err
     }
   })
 
@@ -98,8 +101,11 @@ export default async function projekteRoutes(app: FastifyInstance) {
     try {
       await app.prisma.projekt.delete({ where: { id } })
       return reply.code(204).send()
-    } catch {
-      return reply.code(404).send({ error: 'Projekt nicht gefunden', code: 'NOT_FOUND' })
+    } catch (err) {
+      if ((err as { code?: string }).code === 'P2025') {
+        return reply.code(404).send({ error: 'Projekt nicht gefunden', code: 'NOT_FOUND' })
+      }
+      throw err
     }
   })
 

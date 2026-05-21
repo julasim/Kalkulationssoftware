@@ -36,6 +36,13 @@ services:
       - "3000"           # nur containerintern sichtbar
     networks:
       - default          # NUR privat
+    healthcheck:
+      # Node 22 hat global fetch — kein curl/wget im Image nötig.
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s   # Migrationen (db:deploy) laufen beim Start
 
   web:
     build:
@@ -43,7 +50,8 @@ services:
       dockerfile: packages/desktop/Dockerfile
     restart: unless-stopped
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     # KEIN "ports:" — der Edge-Proxy erreicht den Container über das proxy-Netz.
     # Lokales Testen ohne Edge-Proxy: temporär `ports: ["8080:80"]` ergänzen.
     expose:

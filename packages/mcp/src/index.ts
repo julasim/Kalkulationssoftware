@@ -163,23 +163,28 @@ server.tool(
       include: {
         titel: {
           include: {
-            positionen: { include: { kalkulation: true } },
+            positionen: { include: { kalkulation: { include: { zeilen: true } } } },
           },
         },
       },
     })
     if (!lv) return { content: [{ type: 'text', text: 'LV nicht gefunden' }] }
 
+    // Entfallene Positionen zählen nicht zur Summe (konsistent mit LV-UI und summarize_lv).
     const summeNetto = lv.titel.reduce((sum, t) =>
-      sum + t.positionen.reduce((s, p) => s + Number(p.kalkulation?.gesamtpreis ?? 0), 0), 0)
+      sum + t.positionen
+        .filter((p) => !p.entfaellt)
+        .reduce((s, p) => s + Number(p.kalkulation?.gesamtpreis ?? 0), 0), 0)
 
+    const mwstProzent = 20
     const angebot = await prisma.angebot.create({
       data: {
         lvId,
         bezeichnung,
         snapshotJson: lv as any,
         summeNetto,
-        summeBrutto: summeNetto * 1.2,
+        summeBrutto: summeNetto * (1 + mwstProzent / 100),
+        mwstProzent,
       },
     })
 

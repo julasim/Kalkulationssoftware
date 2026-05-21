@@ -22,7 +22,13 @@ export function startImportJob(
       })
 
       await writePositions(prisma, leistungsbuchId, rows, async (processed) => {
-        await prisma.importJob.update({ where: { id: jobId }, data: { processed } })
+        // Fortschritt ist unkritisch — ein einzelnes fehlgeschlagenes Update darf
+        // den bereits großteils erfolgten Import nicht auf "error" kippen lassen.
+        try {
+          await prisma.importJob.update({ where: { id: jobId }, data: { processed } })
+        } catch {
+          /* Fortschritts-Update ignorieren */
+        }
       })
 
       await prisma.importJob.update({

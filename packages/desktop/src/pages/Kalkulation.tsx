@@ -34,7 +34,10 @@ const SECTIONS: { art: BetriebsmittelArt; label: string; optional: boolean }[] =
 const inp = 'rounded border border-gray-200 px-1.5 py-0.5 text-[12px] outline-none focus:border-gray-900'
 
 function zeileKosten(z: Zeile) {
-  return num(z.menge) * num(z.einzelpreis) * (1 + num(z.aufschlag) / 100)
+  // Aufschlag nur bei Material — konsistent mit der Speicher-Logik (save) und der
+  // Backend-Engine, die für die übrigen Arten aufschlag=0 erhält.
+  const aufschlag = z.art === 'material' ? num(z.aufschlag) : 0
+  return num(z.menge) * num(z.einzelpreis) * (1 + aufschlag / 100)
 }
 
 function neueZeile(art: BetriebsmittelArt): Zeile {
@@ -57,6 +60,7 @@ export default function Kalkulation() {
   const [pos, setPos] = useState<PosInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const [agk, setAgk] = useState('5')
   const [gu, setGu] = useState('3')
@@ -92,10 +96,14 @@ export default function Kalkulation() {
           }))
           setZeilen(zs)
           setExtra(new Set(zs.map((z) => z.art).filter((a) => a === 'material' || a === 'geraet' || a === 'nu')))
-        } else if (std) {
-          setAgk(String(toNum(std.agkProzent)))
-          setGu(String(toNum(std.guProzent)))
-          setGewinn(String(toNum(std.gewinnProzent)))
+        } else {
+          // Neue/leere Kalkulation: State zurücksetzen, sonst bleiben beim Wechsel
+          // zwischen Positionen die Zeilen/Zuschläge der vorherigen Position erhalten.
+          setZeilen([])
+          setExtra(new Set())
+          setAgk(String(toNum(std?.agkProzent ?? 5)))
+          setGu(String(toNum(std?.guProzent ?? 3)))
+          setGewinn(String(toNum(std?.gewinnProzent ?? 3)))
         }
       })
       .finally(() => setLoading(false))
@@ -140,6 +148,7 @@ export default function Kalkulation() {
 
   async function save() {
     setSaving(true)
+    setSaveError(null)
     try {
       await api.put(`/positionen/${positionId}/kalkulation`, {
         agkProzent: num(agk),
@@ -156,6 +165,8 @@ export default function Kalkulation() {
         })),
       })
       navigate(-1)
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Speichern fehlgeschlagen')
     } finally {
       setSaving(false)
     }
@@ -179,9 +190,12 @@ export default function Kalkulation() {
             Menge {toNum(pos.menge)} {pos.einheit}
           </div>
         </div>
-        <button onClick={save} disabled={saving} className="rounded-md bg-gray-900 px-4 py-2 text-[12px] font-medium text-white hover:bg-gray-800 disabled:opacity-50">
-          {saving ? 'Speichern …' : 'Speichern'}
-        </button>
+        <div className="flex items-center gap-3">
+          {saveError && <span className="text-[12px] text-red-600">{saveError}</span>}
+          <button onClick={save} disabled={saving} className="rounded-md bg-gray-900 px-4 py-2 text-[12px] font-medium text-white hover:bg-gray-800 disabled:opacity-50">
+            {saving ? 'Speichern …' : 'Speichern'}
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden">

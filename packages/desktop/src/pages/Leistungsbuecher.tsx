@@ -47,6 +47,7 @@ export default function Leistungsbuecher() {
   }
 
   function poll(jobId: string, name: string) {
+    stopPoll() // ein etwaiges laufendes Intervall beenden, bevor ein neues startet
     pollRef.current = window.setInterval(async () => {
       try {
         const s = await api.get<ImportJobStatus>(`/leistungsbuecher/imports/${jobId}`)

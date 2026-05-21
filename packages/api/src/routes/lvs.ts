@@ -43,8 +43,11 @@ export default async function lvRoutes(app: FastifyInstance) {
           },
         })
         return lv
-      } catch {
-        return reply.code(404).send({ error: 'LV nicht gefunden', code: 'NOT_FOUND' })
+      } catch (err) {
+        if ((err as { code?: string }).code === 'P2025') {
+          return reply.code(404).send({ error: 'LV nicht gefunden', code: 'NOT_FOUND' })
+        }
+        throw err
       }
     },
   )
@@ -114,8 +117,11 @@ export default async function lvRoutes(app: FastifyInstance) {
 
       if (body.parentId !== undefined && body.parentId !== null) {
         if (body.parentId === id) return reply.code(400).send({ error: 'Titel kann nicht sein eigener Übertitel sein', code: 'BAD_REQUEST' })
-        const parent = await app.prisma.lVTitel.findUnique({ where: { id: body.parentId }, select: { parentId: true } })
+        const self = await app.prisma.lVTitel.findUnique({ where: { id }, select: { lvId: true } })
+        if (!self) return reply.code(404).send({ error: 'Titel nicht gefunden', code: 'NOT_FOUND' })
+        const parent = await app.prisma.lVTitel.findUnique({ where: { id: body.parentId }, select: { parentId: true, lvId: true } })
         if (!parent) return reply.code(404).send({ error: 'Übertitel nicht gefunden', code: 'NOT_FOUND' })
+        if (parent.lvId !== self.lvId) return reply.code(400).send({ error: 'Übertitel gehört nicht zu diesem LV', code: 'BAD_REQUEST' })
         if (parent.parentId !== null) return reply.code(400).send({ error: 'Maximal zwei Ebenen erlaubt', code: 'BAD_REQUEST' })
         const hatKinder = await app.prisma.lVTitel.count({ where: { parentId: id } })
         if (hatKinder > 0) return reply.code(400).send({ error: 'Titel mit Untertiteln kann nicht eingerückt werden', code: 'BAD_REQUEST' })
@@ -132,8 +138,11 @@ export default async function lvRoutes(app: FastifyInstance) {
           },
         })
         return titel
-      } catch {
-        return reply.code(404).send({ error: 'Titel nicht gefunden', code: 'NOT_FOUND' })
+      } catch (err) {
+        if ((err as { code?: string }).code === 'P2025') {
+          return reply.code(404).send({ error: 'Titel nicht gefunden', code: 'NOT_FOUND' })
+        }
+        throw err
       }
     },
   )
@@ -169,8 +178,11 @@ export default async function lvRoutes(app: FastifyInstance) {
         await tx.lVTitel.delete({ where: { id } })
       })
       return reply.code(204).send()
-    } catch {
-      return reply.code(404).send({ error: 'Titel nicht gefunden', code: 'NOT_FOUND' })
+    } catch (err) {
+      if ((err as { code?: string }).code === 'P2025') {
+        return reply.code(404).send({ error: 'Titel nicht gefunden', code: 'NOT_FOUND' })
+      }
+      throw err
     }
   })
 
@@ -196,6 +208,7 @@ export default async function lvRoutes(app: FastifyInstance) {
       },
     },
     async (request, reply) => {
+      const { id: lvId } = request.params as { id: string }
       const body = request.body as {
         titelId?: string
         katalogPosId?: string
@@ -210,6 +223,7 @@ export default async function lvRoutes(app: FastifyInstance) {
 
       const titel = await app.prisma.lVTitel.findUnique({ where: { id: body.titelId } })
       if (!titel) return reply.code(404).send({ error: 'Titel nicht gefunden', code: 'NOT_FOUND' })
+      if (titel.lvId !== lvId) return reply.code(400).send({ error: 'Titel gehört nicht zu diesem LV', code: 'BAD_REQUEST' })
 
       let kurztext = body.kurztext?.trim()
       let langtext = body.langtext ?? null
@@ -271,17 +285,26 @@ export default async function lvRoutes(app: FastifyInstance) {
         reihenfolge?: number; titelId?: string
       }
 
-      // Verschieben in anderen Titel → ans Ende des Ziels.
+      // Verschieben in anderen Titel → ans Ende des Ziels (nur innerhalb desselben LV).
       let moveData: { titelId?: string; reihenfolge?: number } = {}
       if (body.titelId !== undefined) {
-        const ziel = await app.prisma.lVTitel.findUnique({ where: { id: body.titelId } })
+        const aktuell = await app.prisma.position.findUnique({ where: { id }, select: { titel: { select: { lvId: true } } } })
+        if (!aktuell) return reply.code(404).send({ error: 'Position nicht gefunden', code: 'NOT_FOUND' })
+        const ziel = await app.prisma.lVTitel.findUnique({ where: { id: body.titelId }, select: { lvId: true } })
         if (!ziel) return reply.code(404).send({ error: 'Ziel-Titel nicht gefunden', code: 'NOT_FOUND' })
+        if (ziel.lvId !== aktuell.titel.lvId) return reply.code(400).send({ error: 'Ziel-Titel gehört nicht zu diesem LV', code: 'BAD_REQUEST' })
         const last = await app.prisma.position.findFirst({ where: { titelId: body.titelId }, orderBy: { reihenfolge: 'desc' }, select: { reihenfolge: true } })
         moveData = { titelId: body.titelId, reihenfolge: (last?.reihenfolge ?? 0) + 1 }
       }
 
       try {
-        const position = await app.prisma.position.update({
+        // Bei Mengenänderung wird der gespeicherte Gesamtpreis nachgezogen (wenn EP
+        // existiert) — Positions- und Kalkulations-Update laufen dann atomar.
+        const kalkulation = body.menge !== undefined
+          ? await app.prisma.kalkulation.findUnique({ where: { positionId: id }, select: { einheitspreis: true } })
+          : null
+
+        const positionUpdate = app.prisma.position.update({
           where: { id },
           data: {
             ...(body.nummer !== undefined ? { nummer: body.nummer.trim() } : {}),
@@ -296,18 +319,21 @@ export default async function lvRoutes(app: FastifyInstance) {
           },
         })
 
-        // Bei Mengenänderung gespeicherten Gesamtpreis nachziehen (wenn EP existiert).
-        if (body.menge !== undefined) {
-          const kalkulation = await app.prisma.kalkulation.findUnique({ where: { positionId: id }, select: { einheitspreis: true } })
-          if (kalkulation?.einheitspreis != null) {
-            const gesamtpreis = Math.round(Number(kalkulation.einheitspreis) * body.menge * 100) / 100
-            await app.prisma.kalkulation.update({ where: { positionId: id }, data: { gesamtpreis } })
-          }
+        if (body.menge !== undefined && kalkulation?.einheitspreis != null) {
+          const gesamtpreis = Math.round(Number(kalkulation.einheitspreis) * body.menge * 100) / 100
+          const [position] = await app.prisma.$transaction([
+            positionUpdate,
+            app.prisma.kalkulation.update({ where: { positionId: id }, data: { gesamtpreis } }),
+          ])
+          return position
         }
 
-        return position
-      } catch {
-        return reply.code(404).send({ error: 'Position nicht gefunden', code: 'NOT_FOUND' })
+        return await positionUpdate
+      } catch (err) {
+        if ((err as { code?: string }).code === 'P2025') {
+          return reply.code(404).send({ error: 'Position nicht gefunden', code: 'NOT_FOUND' })
+        }
+        throw err
       }
     },
   )
@@ -338,8 +364,11 @@ export default async function lvRoutes(app: FastifyInstance) {
     try {
       await app.prisma.position.delete({ where: { id } })
       return reply.code(204).send()
-    } catch {
-      return reply.code(404).send({ error: 'Position nicht gefunden', code: 'NOT_FOUND' })
+    } catch (err) {
+      if ((err as { code?: string }).code === 'P2025') {
+        return reply.code(404).send({ error: 'Position nicht gefunden', code: 'NOT_FOUND' })
+      }
+      throw err
     }
   })
 

@@ -9,8 +9,8 @@ const betriebsmittelBody = {
     bezeichnung: { type: 'string', minLength: 1 },
     kennung: { type: ['string', 'null'] },
     einheit: { type: 'string', minLength: 1 },
-    kostenProEinheit: { type: 'number' },
-    aufschlag: { type: 'number' },
+    kostenProEinheit: { type: 'number', minimum: 0 },
+    aufschlag: { type: 'number', minimum: -100 },
     gruppe: { type: ['string', 'null'] },
     notiz: { type: ['string', 'null'] },
     aktiv: { type: 'boolean' },
@@ -90,8 +90,11 @@ export default async function betriebsmittelRoutes(app: FastifyInstance) {
           },
         })
         return bm
-      } catch {
-        return reply.code(404).send({ error: 'Betriebsmittel nicht gefunden', code: 'NOT_FOUND' })
+      } catch (err) {
+        if ((err as { code?: string }).code === 'P2025') {
+          return reply.code(404).send({ error: 'Betriebsmittel nicht gefunden', code: 'NOT_FOUND' })
+        }
+        throw err
       }
     },
   )
@@ -101,8 +104,11 @@ export default async function betriebsmittelRoutes(app: FastifyInstance) {
     try {
       await app.prisma.betriebsmittel.delete({ where: { id } })
       return reply.code(204).send()
-    } catch {
-      return reply.code(404).send({ error: 'Betriebsmittel nicht gefunden', code: 'NOT_FOUND' })
+    } catch (err) {
+      if ((err as { code?: string }).code === 'P2025') {
+        return reply.code(404).send({ error: 'Betriebsmittel nicht gefunden', code: 'NOT_FOUND' })
+      }
+      throw err
     }
   })
 
@@ -166,8 +172,11 @@ export default async function betriebsmittelRoutes(app: FastifyInstance) {
           })
         })
         return schema
-      } catch {
-        return reply.code(404).send({ error: 'Zuschlagsschema nicht gefunden', code: 'NOT_FOUND' })
+      } catch (err) {
+        if ((err as { code?: string }).code === 'P2025') {
+          return reply.code(404).send({ error: 'Zuschlagsschema nicht gefunden', code: 'NOT_FOUND' })
+        }
+        throw err
       }
     },
   )
@@ -177,8 +186,11 @@ export default async function betriebsmittelRoutes(app: FastifyInstance) {
     try {
       await app.prisma.zuschlagsschema.delete({ where: { id } })
       return reply.code(204).send()
-    } catch {
-      return reply.code(404).send({ error: 'Zuschlagsschema nicht gefunden', code: 'NOT_FOUND' })
+    } catch (err) {
+      if ((err as { code?: string }).code === 'P2025') {
+        return reply.code(404).send({ error: 'Zuschlagsschema nicht gefunden', code: 'NOT_FOUND' })
+      }
+      throw err
     }
   })
 }

@@ -52,6 +52,8 @@ model Projekt {
   userId      String
 
   lvs         LV[]
+
+  @@index([userId])
 }
 
 // ─── Leistungsverzeichnis ─────────────────────────────────────────────────────
@@ -69,6 +71,8 @@ model LV {
 
   titel       LVTitel[]
   angebote    Angebot[]
+
+  @@index([projektId])
 }
 
 // ─── Titel / Gliederung ───────────────────────────────────────────────────────
@@ -88,6 +92,9 @@ model LVTitel {
   kinder      LVTitel[]   @relation("Untertitel")
 
   positionen  Position[]
+
+  @@index([lvId])
+  @@index([parentId])
 }
 
 // ─── Position ─────────────────────────────────────────────────────────────────
@@ -118,6 +125,9 @@ model Position {
   titelId         String
 
   kalkulation     Kalkulation?
+
+  @@index([titelId])
+  @@index([katalogPosId])
 }
 
 // ─── Kalkulation ──────────────────────────────────────────────────────────────
@@ -212,6 +222,8 @@ model ImportJob {
   message         String?
   createdAt       DateTime       @default(now())
   finishedAt      DateTime?
+
+  @@index([leistungsbuchId])
 }
 
 model KatalogPosition {
@@ -297,6 +309,8 @@ model Angebot {
   summeBrutto   Decimal?  @db.Decimal(14, 2)
   mwstProzent   Decimal   @default(20) @db.Decimal(5, 2)
 
-  lv            LV        @relation(fields: [lvId], references: [id])
+  lv            LV        @relation(fields: [lvId], references: [id], onDelete: Cascade)
   lvId          String
+
+  @@index([lvId])
 }

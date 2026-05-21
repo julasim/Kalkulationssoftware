@@ -44,13 +44,16 @@ export function berechneKalkulation(input: KalkulationInput): KalkulationErgebni
   const zuschlagFaktor =
     (1 + input.agkProzent / 100) * (1 + input.guProzent / 100) * (1 + input.gewinnProzent / 100)
 
-  const einheitspreis = epBasis * zuschlagFaktor
-  const gesamtpreis = einheitspreis * input.menge
+  // Einheitspreis auf 4 Nachkommastellen runden und denselben (gespeicherten) Wert
+  // für den Gesamtpreis verwenden — konsistent mit dem Mengen-Nachzug in lvs.ts,
+  // der ebenfalls aus dem gerundeten, gespeicherten Einheitspreis rechnet.
+  const einheitspreis = round(epBasis * zuschlagFaktor, 4)
+  const gesamtpreis = round(einheitspreis * input.menge, 2)
 
   return {
     epBasis: round(epBasis, 4),
     zuschlagFaktor,
-    einheitspreis: round(einheitspreis, 4),
-    gesamtpreis: round(gesamtpreis, 2),
+    einheitspreis,
+    gesamtpreis,
   }
 }

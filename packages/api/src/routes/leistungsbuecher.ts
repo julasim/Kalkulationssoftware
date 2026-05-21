@@ -55,6 +55,15 @@ export default async function leistungsbuecherRoutes(app: FastifyInstance) {
       })
     }
 
+    // Lieferte der Parser keine Positionen, ist die Datei strukturell unbrauchbar —
+    // ablehnen, bevor ein leeres Leistungsbuch angelegt und ein Job gestartet wird.
+    if (parsed.rows.length === 0) {
+      return reply.code(400).send({
+        error: 'Keine Positionen in der ONLB-Datei gefunden — bitte Datei prüfen.',
+        code: 'EMPTY_ONLB',
+      })
+    }
+
     const lb = await upsertLeistungsbuch(app.prisma, parsed, data.filename)
     const job = await app.prisma.importJob.create({
       data: {
@@ -92,8 +101,11 @@ export default async function leistungsbuecherRoutes(app: FastifyInstance) {
           },
         })
         return lb
-      } catch {
-        return reply.code(404).send({ error: 'Leistungsbuch nicht gefunden', code: 'NOT_FOUND' })
+      } catch (err) {
+        if ((err as { code?: string }).code === 'P2025') {
+          return reply.code(404).send({ error: 'Leistungsbuch nicht gefunden', code: 'NOT_FOUND' })
+        }
+        throw err
       }
     },
   )
@@ -104,8 +116,11 @@ export default async function leistungsbuecherRoutes(app: FastifyInstance) {
     try {
       await app.prisma.leistungsbuch.delete({ where: { id } })
       return reply.code(204).send()
-    } catch {
-      return reply.code(404).send({ error: 'Leistungsbuch nicht gefunden', code: 'NOT_FOUND' })
+    } catch (err) {
+      if ((err as { code?: string }).code === 'P2025') {
+        return reply.code(404).send({ error: 'Leistungsbuch nicht gefunden', code: 'NOT_FOUND' })
+      }
+      throw err
     }
   })
 }

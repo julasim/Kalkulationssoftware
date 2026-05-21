@@ -28,15 +28,23 @@ export default function KatalogPicker({ onPick, onClose }: Props) {
       setResults([])
       return
     }
+    let cancelled = false
     const handle = setTimeout(() => {
       setLoading(true)
       const lbParam = filterId ? `&leistungsbuchId=${filterId}` : ''
       api
         .get<{ results: KatalogTreffer[] }>(`/katalog/search?q=${encodeURIComponent(term)}&limit=30${lbParam}`)
-        .then((res) => setResults(res.results))
-        .finally(() => setLoading(false))
+        .then((res) => {
+          if (!cancelled) setResults(res.results)
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false)
+        })
     }, 250)
-    return () => clearTimeout(handle)
+    return () => {
+      cancelled = true
+      clearTimeout(handle)
+    }
   }, [query, filterId])
 
   return (

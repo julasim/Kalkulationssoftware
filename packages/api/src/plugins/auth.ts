@@ -25,6 +25,11 @@ declare module '@fastify/jwt' {
 export default fp(async (app: FastifyInstance) => {
   const secret = process.env.JWT_SECRET
   if (!secret || secret.length < 32) {
+    // In Produktion ist ein fehlendes/zu kurzes Secret ein Sicherheitsrisiko:
+    // Tokens ließen sich mit dem öffentlich bekannten Dev-Secret fälschen.
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('JWT_SECRET fehlt oder ist zu kurz (<32 Zeichen) — in Produktion zwingend setzen.')
+    }
     app.log.warn('JWT_SECRET fehlt oder ist zu kurz (<32 Zeichen) — nur für Dev geeignet.')
   }
 

@@ -58,9 +58,9 @@ export default async function kalkulationRoutes(app: FastifyInstance) {
                   betriebsmittelId: { type: ['string', 'null'] },
                   bezeichnung: { type: 'string' },
                   einheit: { type: 'string' },
-                  menge: { type: 'number' },
-                  einzelpreis: { type: 'number' },
-                  aufschlag: { type: 'number' },
+                  menge: { type: 'number', minimum: 0 },
+                  einzelpreis: { type: 'number', minimum: 0 },
+                  aufschlag: { type: 'number', minimum: -100 },
                 },
               },
             },
@@ -75,9 +75,12 @@ export default async function kalkulationRoutes(app: FastifyInstance) {
       const position = await app.prisma.position.findUnique({ where: { id } })
       if (!position) return reply.code(404).send({ error: 'Position nicht gefunden', code: 'NOT_FOUND' })
 
-      const agkProzent = n(body.agkProzent ?? 5)
-      const guProzent = n(body.guProzent ?? 3)
-      const gewinnProzent = n(body.gewinnProzent ?? 3)
+      // Fehlen Zuschläge im Body, das konfigurierte Standard-Schema heranziehen
+      // (statt fixer 5/3/3) — konsistent mit der Vorbelegung in der GET-Route.
+      const std = await app.prisma.zuschlagsschema.findFirst({ where: { istStandard: true } })
+      const agkProzent = n(body.agkProzent ?? std?.agkProzent ?? 5)
+      const guProzent = n(body.guProzent ?? std?.guProzent ?? 3)
+      const gewinnProzent = n(body.gewinnProzent ?? std?.gewinnProzent ?? 3)
 
       const zeilen = (body.zeilen ?? []).map((z: any, i: number) => ({
         art: z.art,
